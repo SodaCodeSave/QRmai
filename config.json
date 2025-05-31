@@ -3,5 +3,6 @@
   "p2": [945, 682],
   "token": "qrmai",
   "host": "0.0.0.0",
-  "port": 5000
+  "port": 5000,
+  "standalone_mode": false
 }
