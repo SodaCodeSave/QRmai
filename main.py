@@ -16,7 +16,8 @@ def qrmai():
     if request.args.get('token') != config['token']:
         return "error"
 
-    wechat = gw.getWindowsWithTitle("微信")[0]
+    # 根据配置选择窗口标题
+    window_title = "舞萌丨中二" if config.get('standalone_mode', False) else "微信"
     if wechat.isMinimized:
         wechat.restore()
     wechat.activate()
@@ -64,7 +65,7 @@ def qrmai():
 
     img_io.seek(0)
 
-    window = gw.getWindowsWithTitle("微信")[0]
+    window = gw.getWindowsWithTitle("微信")[0] # In-app browser
 
     window.close()
     return Response(img_io, mimetype='image/png')
