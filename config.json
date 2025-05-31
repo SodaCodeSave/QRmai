@@ -4,5 +4,6 @@
   "token": "qrmai",
   "host": "0.0.0.0",
   "port": 5000,
+  "cache_duration": 60,
   "standalone_mode": false
 }

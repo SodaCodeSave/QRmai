@@ -11,6 +11,11 @@ from pyzbar.pyzbar import decode
 
 app = Flask(__name__)
 
+# 添加全局变量用于缓存
+request_lock = False
+last_qr_bytes = None
+last_qr_time = 0
+
 def qrmai_action():
     # 根据配置选择窗口标题
     window_title = "舞萌丨中二" if config.get('standalone_mode', False) else "微信"
@@ -70,11 +75,32 @@ def qrmai_action():
 @app.route('/qrmai')
 def qrmai():
     if request.args.get('token') != config['token']:
-        return "error"
+        return Response('403 Forbidden', status=403)
 
-    img_io = qrmai_action()
-    img_io.seek(0)
-    return Response(img_io, mimetype='image/png')
+    global request_lock, last_qr_bytes, last_qr_time
+
+    current_time = time.time()
+    cache_duration = config.get('cache_duration', 60)
+    
+    # 如果有正在进行的请求，等待直到请求完成
+    while request_lock:
+        time.sleep(0.5)
+        
+    # 检查缓存是否有效
+    if last_qr_bytes and (current_time - last_qr_time) < cache_duration:
+        return Response(io.BytesIO(last_qr_bytes), mimetype='image/png')
+
+    # 设置锁
+    request_lock = True
+    try:
+        img_io = qrmai_action()
+        img_io.seek(0)
+        last_qr_bytes = img_io.getvalue()
+        last_qr_time = current_time
+        return Response(io.BytesIO(last_qr_bytes), mimetype='image/png')
+    finally:
+        # 释放锁
+        request_lock = False
 
 if __name__ == '__main__':
     import json

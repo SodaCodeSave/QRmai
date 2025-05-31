@@ -48,6 +48,7 @@ python main.py
   "token": "qrmai", // 访问二维码的token
   "host": "127.0.0.1", // 服务器地址 设置成0.0.0.0即可内网访问
   "port": 5000, // 服务器端口
+  "cache_duration": 60, // 二维码缓存时间（秒），默认60秒
   "standalone_mode": false // "舞萌丨中二"公众号是否为使用独立窗口显示
 }
 ```
