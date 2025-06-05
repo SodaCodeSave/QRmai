@@ -4,6 +4,40 @@
 
 在服务端中获取二维码并将图片返回到客户端，灵感来源于[MaimaiHelper](https://github.com/SomeUtils/MaimaiHelper)
 
+## 打包为可执行文件
+
+本项目提供了PyInstaller打包脚本，可以将QRmai打包为独立的Windows可执行文件。
+
+### 使用方法
+
+1. 安装PyInstaller:
+   ```bash
+   pip install pyinstaller
+   ```
+
+2. (可选但推荐) 获取二维码识别所需的DLL文件:
+   - 下载 `libiconv.dll` 和 `libzbar-64.dll` 文件
+   - 将这些文件放置在 `packaging` 目录中
+
+3. 进入packaging目录并运行打包脚本:
+   ```bash
+   cd packaging
+   python build_exe.py
+   ```
+
+   或者在Windows上双击运行 `packaging/build.bat` 文件。
+
+4. 生成的可执行文件将位于项目根目录的 `dist` 目录中。
+
+### 打包特性
+
+- 保留控制台窗口以查看程序输出和错误信息
+- 使用UPX压缩减小可执行文件体积（如果可用）
+- 自动处理所有依赖项和资源文件
+- 支持配置文件和皮肤文件
+
+有关详细的打包说明，请参阅 [PACKAGING.md](PACKAGING.md) 文档。
+
 ## 为什么使用QRmai
 
 1. 具有更多的自定义选项

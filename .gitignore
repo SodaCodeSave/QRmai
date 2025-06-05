@@ -160,6 +160,5 @@ cython_debug/
 .idea/
 
 skin.png
-
-libiconv.dll
-libzbar-64.dll
+packaging/libiconv.dll
+packaging/libzbar-64.dll
