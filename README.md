@@ -8,7 +8,6 @@
 
 1. 具有更多的自定义选项
 2. 兼容MaimaiHelper APP
-3. 想不出来了
 
 ## 下载
 
@@ -16,13 +15,15 @@
 
 [Github Release](https://github.com/SodaCodeSave/QRmai/releases/latest)
 
-## 部署教程
+## 使用教程
+
+> QRMai使用微信最新版进行测试，不保证微信2可用，请尽可能使用微信最新版
 
 1. 安装[Python3](https://www.python.org/downloads/)
 2. 安装依赖
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/
 ```
 
 3. 运行main.py
@@ -31,7 +32,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-4. 访问http://127.0.0.1:5000/qrmai?token=qrmai
+4. 访问http://127.0.0.1:5000/qrmai?token={你在配置文件中设置的token}
 
 ## 皮肤
 
