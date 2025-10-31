@@ -1,3 +1,4 @@
+import os
 """
 QRmai - 一个用于获取并返回二维码图片的服务端程序
 适用于只有基本联网安卓设备（如：手表、翻页手机）的情况下的出勤场景
@@ -212,8 +213,12 @@ if __name__ == '__main__':
     from json import load as json_load
     
     # 读取配置文件
-    with open('config.json', 'r', encoding='utf-8') as f:
-        config = json_load(f)
+    if os.path.exists('config.json'):
+        with open('config.json', 'r', encoding='utf-8') as f:
+            config = json_load(f)
+    else:
+        print("错误: 未找到config.json文件")
+        input("按回车键退出...")
         
     # 启动Flask应用，使用配置中的主机和端口
     app.run(host=config["host"], port=config["port"])
