@@ -1,13 +1,8 @@
-import os
-"""
-QRmai - 一个用于获取并返回二维码图片的服务端程序
-适用于只有基本联网安卓设备（如：手表、翻页手机）的情况下的出勤场景
-"""
-
-# 导入所需的库
-from flask import Flask, Response, request  # Flask框架相关模块
+from flask import Flask, render_template, request, Response, session, redirect, url_for  # Flask框架相关模块
 from io import BytesIO  # 用于处理字节流
 import time  # 时间相关操作
+import json  # JSON操作库
+import os
 
 # 图形界面自动化和图像处理相关库
 from pynput.mouse import Controller as MouseController  # 鼠标控制库
@@ -16,20 +11,56 @@ import qrcode  # 二维码生成库
 from PIL import Image, ImageDraw, ImageFont  # 图像处理库
 from mss import mss  # 屏幕截图库
 from pyzbar.pyzbar import decode  # 二维码解码库
+import json  # JSON操作库
 
 # 初始化鼠标控制器
 mouse = MouseController()
 
 # 初始化Flask应用
 app = Flask(__name__)
+app.secret_key = 'your-secret-key-here'  # 在生产环境中应该使用更安全的密钥
 
 # 添加全局变量用于缓存
-# request_lock: 请求锁，防止并发请求
-# last_qr_bytes: 上一次生成的二维码字节数据
-# last_qr_time: 上一次生成二维码的时间戳
-request_lock = False
-last_qr_bytes = None
-last_qr_time = 0
+request_lock = False  # 请求锁，防止并发访问
+last_qr_bytes = None  # 上次生成的二维码字节数据
+last_qr_time = 0  # 上次生成二维码的时间戳
+
+def require_auth(f):
+    """装饰器：要求用户认证"""
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # 检查基础认证状态
+        if 'authenticated' not in session:
+            return redirect(url_for('login'))
+        
+        # 检查配置版本是否匹配（增强安全性）
+        if 'config_version' not in session or session['config_version'] != config.get('version'):
+            # 配置已更改，需要重新登录
+            session.pop('authenticated', None)
+            session.pop('config_version', None)
+            return redirect(url_for('login'))
+            
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        token = request.form.get('token')
+        if token and token == config['token']:
+            session['authenticated'] = True
+            # 存储配置版本信息到session中，用于增强安全性
+            session['config_version'] = config.get('version')
+            return {'success': True}
+        else:
+            return {'success': False}
+    return render_template('login.html')
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    session.pop('authenticated', None)
+    return '', 204
 
 def qrmai_action():
     """
@@ -207,18 +238,102 @@ def qrmai():
         # 释放请求锁
         request_lock = False
 
+@app.route('/settings', methods=['GET', 'POST'])
+@require_auth
+def settings():
+    if request.method == 'POST':
+        # 读取POST参数并更新config
+        token_updated = False
+        old_token = config['token']
+        
+        # 处理所有表单字段，包括布尔值字段
+        # 首先处理布尔值字段，确保未选中的开关也能正确处理
+        boolean_fields = ['standalone_mode']
+        for field in boolean_fields:
+            if field in config:
+                # 检查表单中是否包含该字段
+                config[field] = field in request.form and request.form[field].lower() in ('true', '1', 'yes', 'on')
+        
+        # 处理其他字段
+        for key, value in request.form.items():
+            # 跳过已处理的布尔值字段
+            if key in boolean_fields:
+                continue
+                
+            if key in config:
+                # 尝试将字符串转换为对应类型（int/float/list）
+                if isinstance(config[key], bool):
+                    config[key] = value.lower() in ('true', '1', 'yes', 'on')
+                elif isinstance(config[key], int):
+                    config[key] = int(value)
+                elif isinstance(config[key], float):
+                    config[key] = float(value)
+                elif isinstance(config[key], list) and ',' in value:
+                    config[key] = [int(v) if v.isdigit() else v for v in value.split(',')]
+                else:
+                    config[key] = value
+                # 检查是否更新了token
+                if key == 'token' and value != old_token:
+                    token_updated = True
+        
+        # 保存更新后的config到文件
+        with open('config.json', 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=4)
+        # 如果token被更新，需要更新配置版本信息
+        if token_updated:
+            import hashlib
+            import time
+            import os
+            config_version = hashlib.md5((config['token'] + str(os.path.getmtime('config.json'))).encode()).hexdigest()
+            config['version'] = config_version
+            # 更新session中的配置版本信息
+            session['config_version'] = config_version
+        return '配置已更新', 200
+    # GET请求时返回设置页面
+    return render_template('settings.html', config=config)
+
 # 程序入口点
 if __name__ == '__main__':
     # 导入json模块用于读取配置文件
     from json import load as json_load
+    import hashlib
+    import time
     
     # 读取配置文件
     if os.path.exists('config.json'):
         with open('config.json', 'r', encoding='utf-8') as f:
             config = json_load(f)
+        # 添加配置版本标识，用于增强认证安全性
+        config_version = hashlib.md5((config['token'] + str(os.path.getmtime('config.json'))).encode()).hexdigest()
+        config['version'] = config_version
     else:
-        print("错误: 未找到config.json文件")
-        input("按回车键退出...")
+        # 如果config.json不存在，则创建默认配置文件
+        config = {
+            "p1": [1087, 799],
+            "p2": [945, 682],
+            "token": "qrmai",
+            "host": "0.0.0.0",
+            "port": 5000,
+            "cache_duration": 60,
+            "standalone_mode": False,
+            "decode": {
+                "time": 10,
+                "retry_count": 10
+            },
+            "skin_format": "new",
+            "dev_mode": True
+        }
+        # 保存默认配置到文件
+        with open('config.json', 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=4)
+        # 添加配置版本标识
+        config_version = hashlib.md5((config['token'] + str(time.time())).encode()).hexdigest()
+        config['version'] = config_version
         
     # 启动Flask应用，使用配置中的主机和端口
-    app.run(host=config["host"], port=config["port"])
+    from webbrowser import open as open_webbrowser
+    if config["host"] != "0.0.0.0":
+        open_webbrowser(f'http://{config["host"]}:{config["port"]}/login')
+    else:
+        open_webbrowser(f'http://localhost:{config["port"]}/login')
+    app.run(host=config["host"], port=config["port"], debug=config["dev_mode"])

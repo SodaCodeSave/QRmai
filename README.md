@@ -55,7 +55,9 @@ python main.py
     "time": 10,  // 超时时间
     "retry_count": 10  // 重试次数
   }
-  "skin_format": "new" // 皮肤格式 new为新版皮肤 二维码居中 old为旧版皮肤 二维码靠下
+  "skin_format": "new", // 皮肤格式 new为新版皮肤 二维码居中 old为旧版皮肤 二维码靠下
+  "dev_mode": false, // 是否开启开发模式 开启后修改代码时无需重启服务器
+  "version": "259e1c35e495e4945bbfa47118aef4d2" // 版本号 用于安全检查验证
 }
 ```
 
