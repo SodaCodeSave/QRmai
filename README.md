@@ -1,5 +1,7 @@
 # QRmai
 
+**qq交流群：1058589509 密码：SodaCodeSave/QRmai**
+
 > 帮您在只有基本联网安卓设备（如：手表、翻盖手机）的情况下也能轻松出勤！
 
 在服务端中获取二维码并将图片返回到客户端，灵感来源于[MaimaiHelper](https://github.com/SomeUtils/MaimaiHelper)
