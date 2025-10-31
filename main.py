@@ -5,16 +5,19 @@ QRmai - 一个用于获取并返回二维码图片的服务端程序
 
 # 导入所需的库
 from flask import Flask, Response, request  # Flask框架相关模块
-import io  # 用于处理字节流
+from io import BytesIO  # 用于处理字节流
 import time  # 时间相关操作
 
 # 图形界面自动化和图像处理相关库
-import pyautogui  # GUI自动化库
+from pynput.mouse import Controller as MouseController  # 鼠标控制库
 import pygetwindow as gw  # 窗口管理库
 import qrcode  # 二维码生成库
 from PIL import Image, ImageDraw, ImageFont  # 图像处理库
 from mss import mss  # 屏幕截图库
 from pyzbar.pyzbar import decode  # 二维码解码库
+
+# 初始化鼠标控制器
+mouse = MouseController()
 
 # 初始化Flask应用
 app = Flask(__name__)
@@ -36,7 +39,7 @@ def qrmai_action():
     4. 将二维码与皮肤合成并返回
     """
     # 创建字节流对象用于存储最终的图片数据
-    img_io = io.BytesIO()
+    img_io = BytesIO()
     
     # 根据配置选择窗口标题
     # standalone_mode为True时使用"舞萌丨中二"，否则使用"微信"
@@ -54,8 +57,8 @@ def qrmai_action():
         :param x: x坐标
         :param y: y坐标
         """
-        pyautogui.moveTo(x, y)
-        pyautogui.click()
+        mouse.position = (x, y)
+        mouse.click(MouseController().left, 1)
 
     # 点击第一个位置(p1) - 通常是"舞萌 | 中二服务号生成二维码按钮的位置"
     move_click(config["p1"][0], config["p1"][1])
@@ -108,7 +111,7 @@ def qrmai_action():
 
                 return img_io  # 返回错误图像
             # 打印重试信息
-            print(f"二维码解码失败 过{config["decode"]["time"] / config["decode"]["retry_count"]}s后重试 ({i+1}/{config["decode"]["retry_count"]})")
+            print(f"二维码解码失败 过{config['decode']['time'] / config['decode']['retry_count']}s后重试 ({i+1}/{config['decode']['retry_count']})")
     
     # 使用解码得到的数据生成新的二维码
     qr_img = qrcode.make(decoded_objects[0].data.decode("utf-8"))
@@ -184,7 +187,7 @@ def qrmai():
     # 检查缓存是否有效（存在且未过期）
     if last_qr_bytes and (current_time - last_qr_time) < cache_duration:
         # 返回缓存的二维码图像
-        return Response(io.BytesIO(last_qr_bytes), mimetype='image/png')
+        return Response(BytesIO(last_qr_bytes), mimetype='image/png')
 
     # 设置请求锁，防止并发访问
     request_lock = True
@@ -198,7 +201,7 @@ def qrmai():
         last_qr_time = current_time
         
         # 返回新生成的二维码图像
-        return Response(io.BytesIO(last_qr_bytes), mimetype='image/png')
+        return Response(BytesIO(last_qr_bytes), mimetype='image/png')
     finally:
         # 释放请求锁
         request_lock = False
@@ -206,11 +209,11 @@ def qrmai():
 # 程序入口点
 if __name__ == '__main__':
     # 导入json模块用于读取配置文件
-    import json
+    from json import load as json_load
     
     # 读取配置文件
     with open('config.json', 'r', encoding='utf-8') as f:
-        config = json.load(f)
+        config = json_load(f)
         
     # 启动Flask应用，使用配置中的主机和端口
     app.run(host=config["host"], port=config["port"])
