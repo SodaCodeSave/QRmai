@@ -55,8 +55,9 @@ def build_executable():
         cmd.extend(["--add-data", f"{libiconv_dll}{os.pathsep}."])
         cmd.extend(["--add-data", f"{libzbar_dll}{os.pathsep}."])
     else:
-        print("警告: 未找到libiconv.dll和libzbar-64.dll文件，打包后的程序可能无法正常运行二维码识别功能")
+        print("警告: 未找到libiconv.dll和libzbar-64.dll文件，打包后的程序无法正常运行，请放入后重新打包")
         print("请将这些DLL文件放置在packaging目录中以确保程序正常运行")
+        return False
     
     # 添加隐藏导入
     hidden_imports = [
