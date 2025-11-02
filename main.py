@@ -292,6 +292,40 @@ def settings():
     # GET请求时返回设置页面
     return render_template('settings.html', config=config)
 
+def get_default_config():
+    """获取默认配置项"""
+    return {
+        "p1": [1087, 799],
+        "p2": [945, 682],
+        "token": "qrmai",
+        "host": "0.0.0.0",
+        "port": 5000,
+        "cache_duration": 60,
+        "standalone_mode": False,
+        "decode": {
+            "time": 10,
+            "retry_count": 10
+        },
+        "skin_format": "new",
+        "dev_mode": True
+    }
+
+def ensure_config_completeness(config):
+    """确保配置项完整，缺失的项用默认值补全"""
+    default_config = get_default_config()
+    
+    # 检查并补全顶层配置项
+    for key, default_value in default_config.items():
+        if key not in config:
+            config[key] = default_value
+        # 对于嵌套字典，也需要检查完整性
+        elif isinstance(default_value, dict) and isinstance(config[key], dict):
+            for sub_key, sub_default_value in default_value.items():
+                if sub_key not in config[key]:
+                    config[key][sub_key] = sub_default_value
+    
+    return config
+
 # 程序入口点
 if __name__ == '__main__':
     # 导入json模块用于读取配置文件
@@ -303,26 +337,16 @@ if __name__ == '__main__':
     if os.path.exists('config.json'):
         with open('config.json', 'r', encoding='utf-8') as f:
             config = json_load(f)
+        config = ensure_config_completeness(config)
+        # 保存补全后的配置
+        with open('config.json', 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=4)
         # 添加配置版本标识，用于增强认证安全性
         config_version = hashlib.md5((config['token'] + str(os.path.getmtime('config.json'))).encode()).hexdigest()
         config['version'] = config_version
     else:
         # 如果config.json不存在，则创建默认配置文件
-        config = {
-            "p1": [1087, 799],
-            "p2": [945, 682],
-            "token": "qrmai",
-            "host": "0.0.0.0",
-            "port": 5000,
-            "cache_duration": 60,
-            "standalone_mode": False,
-            "decode": {
-                "time": 10,
-                "retry_count": 10
-            },
-            "skin_format": "new",
-            "dev_mode": True
-        }
+        config = get_default_config()
         # 保存默认配置到文件
         with open('config.json', 'w', encoding='utf-8') as f:
             json.dump(config, f, ensure_ascii=False, indent=4)

@@ -31,16 +31,16 @@
                 grid-template-columns: 1fr !important;
                 gap: 16px !important;
             }
-            
+
             mdui-card {
                 margin: 8px !important;
             }
-            
+
             .setting-description {
                 font-size: 13px;
             }
         }
-        
+
         .logout-btn {
             position: fixed;
             top: 20px;
@@ -53,8 +53,9 @@
 <body>
     <mdui-container>
         <mdui-button id="logoutBtn" class="logout-btn" variant="outlined">登出</mdui-button>
-        
-        <div class="settings-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
+
+        <div class="settings-grid"
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
             <!-- 基本设置卡片 -->
             <mdui-card>
                 <div style="padding: 24px;">
@@ -79,7 +80,7 @@
                         <mdui-text-field label="二维码缓存时间(秒)" name="cache_duration"
                             value="{{ config.get('cache_duration', 60) }}" type="number"
                             helper="二维码缓存时间，单位为秒"></mdui-text-field>
-                        
+
                         <mdui-button type="submit" variant="filled">保存基本设置</mdui-button>
                     </form>
                 </div>
@@ -95,8 +96,8 @@
                     <form method="post" action="/settings" class="setting-form">
                         <!-- Standalone Mode -->
                         <label for="standalone_mode">舞萌丨中二公众号是否使用独立窗口显示</label>
-                        <mdui-switch name="standalone_mode" value="true" {% if config.get('standalone_mode', False) %}checked{% endif
-                            %}></mdui-switch>
+                        <mdui-switch name="standalone_mode" value="true" {% if config.get('standalone_mode', False)
+                            %}checked{% endif %}></mdui-switch>
 
                         <!-- Skin Format -->
                         <label for="skin_format">皮肤格式</label>
@@ -105,7 +106,7 @@
                             <mdui-segmented-button value="new">新版皮肤(二维码居中)</mdui-segmented-button>
                             <mdui-segmented-button value="old">旧版皮肤(二维码靠下)</mdui-segmented-button>
                         </mdui-segmented-button-group>
-                        
+
                         <mdui-button type="submit" variant="filled">保存应用设置</mdui-button>
                     </form>
                 </div>
@@ -118,7 +119,8 @@
                     <div class="setting-description">
                         请根据您的屏幕分辨率调整以下坐标值。坐标格式为 X,Y（例如：1087,799）
                     </div>
-                    <div id="mousePosition" style="margin-bottom: 16px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
+                    <div id="mousePosition"
+                        style="margin-bottom: 16px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
                         当前鼠标坐标: <span id="mouseX">0</span>, <span id="mouseY">0</span>
                     </div>
                     <form method="post" action="/settings" class="setting-form">
@@ -129,7 +131,7 @@
                         <!-- P2 Position -->
                         <mdui-text-field label="P2坐标(X,Y)" name="p2" value="{{ config.get('p2', [0, 0])|join(',') }}"
                             helper="生成后的二维码的消息的位置"></mdui-text-field>
-                        
+
                         <mdui-button type="submit" variant="filled">保存位置设置</mdui-button>
                     </form>
                 </div>
@@ -150,78 +152,88 @@
                         <mdui-text-field label="重试次数" name="decode.retry_count"
                             value="{{ config.get('decode', {}).get('retry_count', 10) }}" type="number"
                             helper="二维码解码重试次数"></mdui-text-field>
-                        
+
                         <mdui-button type="submit" variant="filled">保存解码设置</mdui-button>
                     </form>
                 </div>
             </mdui-card>
         </div>
+        <mdui-card style="margin-top: 24px;">
+            <div style="padding: 24px;">
+                <h2>关于</h2>
+                <div class="setting-description">
+                    QRmaiqq交流群：1058589509 密码：SodaCodeSave/QRmai <br>
+                    遇到问题请先在群里反馈
+                </div>
+            </div>
+        </mdui-card>
     </mdui-container>
-    
+
     <script>
         // 实时显示鼠标坐标
-        document.addEventListener('mousemove', function(e) {
+        document.addEventListener('mousemove', function (e) {
             document.getElementById('mouseX').textContent = e.clientX;
             document.getElementById('mouseY').textContent = e.clientY;
         });
-        
+
         // 为所有表单添加提交事件监听器
         document.querySelectorAll('.setting-form').forEach(form => {
-            form.addEventListener('submit', function(e) {
+            form.addEventListener('submit', function (e) {
                 e.preventDefault();
-                
+
                 // 创建FormData对象
                 const formData = new FormData(this);
-                
+
                 // 发送POST请求
                 fetch('/settings', {
                     method: 'POST',
                     body: formData
                 })
-                .then(response => {
-                    if (response.ok) {
-                        // 显示成功消息
+                    .then(response => {
+                        if (response.ok) {
+                            // 显示成功消息
+                            mdui.snackbar({
+                                message: '设置已保存',
+                                placement: 'top'
+                            });
+                        } else if (response.status === 403) {
+                            // Token验证失败
+                            mdui.snackbar({
+                                message: '认证失败，请重新登录',
+                                placement: 'top'
+                            });
+                            // 跳转到登录页面
+                            setTimeout(() => {
+                                window.location.href = '/login';
+                            }, 1500);
+                        } else {
+                            // 其他错误
+                            mdui.snackbar({
+                                message: '保存失败',
+                                placement: 'top'
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
                         mdui.snackbar({
-                            message: '设置已保存',
+                            message: '网络错误',
                             placement: 'top'
                         });
-                    } else if (response.status === 403) {
-                        // Token验证失败
-                        mdui.snackbar({
-                            message: '认证失败，请重新登录',
-                            placement: 'top'
-                        });
-                        // 跳转到登录页面
-                        setTimeout(() => {
-                            window.location.href = '/login';
-                        }, 1500);
-                    } else {
-                        // 其他错误
-                        mdui.snackbar({
-                            message: '保存失败',
-                            placement: 'top'
-                        });
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    mdui.snackbar({
-                        message: '网络错误',
-                        placement: 'top'
                     });
-                });
             });
         });
-        
+
         // 登出按钮事件
-        document.getElementById('logoutBtn').addEventListener('click', function() {
+        document.getElementById('logoutBtn').addEventListener('click', function () {
             fetch('/logout', {
                 method: 'POST'
             })
-            .then(() => {
-                window.location.href = '/login';
-            });
+                .then(() => {
+                    window.location.href = '/login';
+                });
         });
     </script>
 </body>
+
 </html>
