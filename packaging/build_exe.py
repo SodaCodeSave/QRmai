@@ -50,6 +50,11 @@ def build_executable():
     if skin_exists:
         cmd.extend(["--add-data", f"{project_root / 'skin.png'}{os.pathsep}."])
     
+    # 添加templates文件夹到数据文件中
+    templates_dir = project_root / "templates"
+    if templates_dir.exists():
+        cmd.extend(["--add-data", f"{templates_dir}{os.pathsep}templates"])
+    
     # 如果DLL文件存在，则添加到数据文件中
     if dll_files_exist:
         cmd.extend(["--add-data", f"{libiconv_dll}{os.pathsep}."])

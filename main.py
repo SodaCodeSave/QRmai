@@ -3,6 +3,17 @@ from io import BytesIO  # 用于处理字节流
 import time  # 时间相关操作
 import json  # JSON操作库
 import os
+import sys
+
+def resource_path(relative_path):
+    """获取资源文件的绝对路径"""
+    try:
+        # PyInstaller创建临时文件夹，将路径存储在_MEIPASS中
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    
+    return os.path.join(base_path, relative_path)
 
 # 图形界面自动化和图像处理相关库
 from pynput.mouse import Controller as MouseController  # 鼠标控制库
@@ -17,7 +28,7 @@ import json  # JSON操作库
 mouse = MouseController()
 
 # 初始化Flask应用
-app = Flask(__name__)
+app = Flask(__name__, template_folder=resource_path('templates'))
 app.secret_key = 'your-secret-key-here'  # 在生产环境中应该使用更安全的密钥
 
 # 添加全局变量用于缓存
