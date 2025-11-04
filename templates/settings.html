@@ -165,6 +165,8 @@
                     QRmaiqq交流群：1058589509 密码：SodaCodeSave/QRmai <br>
                     遇到问题请先在群里反馈
                 </div>
+                <mdui-button id="checkUpdateBtn" variant="filled">检查更新</mdui-button>
+                <div id="updateStatus" style="margin-top: 16px; display: none;"></div>
             </div>
         </mdui-card>
     </mdui-container>
@@ -232,6 +234,53 @@
                 .then(() => {
                     window.location.href = '/login';
                 });
+        });
+
+        // 检查更新按钮事件
+        document.getElementById('checkUpdateBtn').addEventListener('click', function () {
+            const btn = this;
+            const statusDiv = document.getElementById('updateStatus');
+            
+            // 禁用按钮并显示加载状态
+            btn.disabled = true;
+            btn.textContent = '检查中...';
+            statusDiv.style.display = 'none';
+            
+            // 发送检查更新请求
+            fetch('/check_update', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    // 显示错误信息
+                    statusDiv.innerHTML = `<mdui-alert variant="error">${data.message}</mdui-alert>`;
+                } else if (data.has_update) {
+                    // 显示更新信息
+                    statusDiv.innerHTML = `
+                        <mdui-alert variant="info">
+                            <div>发现新版本: ${data.version}</div>
+                            <div>更新名称: ${data.name}</div>
+                            <div>发布时间: ${data.published_at}</div>
+                            <div>更新内容: ${data.body || '无'}</div>
+                        </mdui-alert>
+                    `;
+                } else {
+                    // 显示已是最新版本
+                    statusDiv.innerHTML = `<mdui-alert variant="success">${data.message}</mdui-alert>`;
+                }
+                statusDiv.style.display = 'block';
+            })
+            .catch(error => {
+                // 显示网络错误
+                statusDiv.innerHTML = `<mdui-alert variant="error">网络错误: ${error.message}</mdui-alert>`;
+                statusDiv.style.display = 'block';
+            })
+            .finally(() => {
+                // 恢复按钮状态
+                btn.disabled = false;
+                btn.textContent = '检查更新';
+            });
         });
     </script>
 </body>

@@ -1,11 +1,11 @@
 {
     "p1": [
-        1099,
-        800
+        1087,
+        799
     ],
     "p2": [
-        1066,
-        745
+        945,
+        682
     ],
     "token": "qrmai",
     "host": "0.0.0.0",
@@ -17,6 +17,5 @@
         "retry_count": 10
     },
     "skin_format": "new",
-    "dev_mode": true,
-    "version": "cde258eb5148c2c320cd162a01be0028"
+    "dev_mode": false
 }

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, Response, session, redirect, url_for  # Flask框架相关模块
+from flask import Flask, render_template, request, Response, session, redirect, url_for, jsonify  # Flask框架相关模块
 from io import BytesIO  # 用于处理字节流
 import time  # 时间相关操作
 import json  # JSON操作库
@@ -23,13 +23,14 @@ from PIL import Image, ImageDraw, ImageFont  # 图像处理库
 from mss import mss  # 屏幕截图库
 from pyzbar.pyzbar import decode  # 二维码解码库
 import json  # JSON操作库
+from uuid import uuid4
 
 # 初始化鼠标控制器
 mouse = MouseController()
 
 # 初始化Flask应用
 app = Flask(__name__, template_folder=resource_path('templates'))
-app.secret_key = 'your-secret-key-here'  # 在生产环境中应该使用更安全的密钥
+app.secret_key = str(uuid4())  # 在生产环境中应该使用更安全的密钥
 
 # 添加全局变量用于缓存
 request_lock = False  # 请求锁，防止并发访问
@@ -302,6 +303,36 @@ def settings():
         return '配置已更新', 200
     # GET请求时返回设置页面
     return render_template('settings.html', config=config)
+
+@app.route('/check_update', methods=['POST'])
+@require_auth
+def check_update():
+    """检查更新的路由"""
+    try:
+        # 导入updater模块
+        import updater
+        
+        # 检查是否有新版本
+        has_update, latest_release = updater.is_new_version_available()
+        
+        if has_update and latest_release:
+            return jsonify({
+                'has_update': True,
+                'version': latest_release['version'],
+                'name': latest_release['name'],
+                'published_at': latest_release['published_at'],
+                'body': latest_release['body']
+            })
+        else:
+            return jsonify({
+                'has_update': False,
+                'message': '当前已是最新版本'
+            })
+    except Exception as e:
+        return jsonify({
+            'error': True,
+            'message': f'检查更新时出错: {str(e)}'
+        }), 500
 
 def get_default_config():
     """获取默认配置项"""
