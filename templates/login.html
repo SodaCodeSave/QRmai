@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QRMai 登录</title>
+    <link rel="stylesheet" href="https://unpkg.com/mdui@2/mdui.css" />
+    <script src="https://unpkg.com/mdui@2/mdui.global.js"></script>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            padding: 24px;
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        
+        .logo h1 {
+            margin: 0;
+            font-size: 24px;
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .error-message {
+            color: #f44336;
+            font-size: 14px;
+            margin-top: 8px;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <mdui-card class="login-card">
+        <div class="logo">
+            <h1>QRMai 管理面板</h1>
+        </div>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <mdui-text-field id="tokenInput" label="访问令牌" type="password" helper="请输入您的访问令牌" required></mdui-text-field>
+            </div>
+            
+            <div id="errorMessage" class="error-message">
+                令牌无效，请重新输入
+            </div>
+            
+            <mdui-button type="submit" variant="filled" style="width: 100%;">登录</mdui-button>
+
+            <div>
+                默认令牌：qrmai
+            </div>
+        </form>
+    </mdui-card>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const token = document.getElementById('tokenInput').value;
+            const errorMessage = document.getElementById('errorMessage');
+            
+            // 发送请求验证token
+            fetch('/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'token=' + encodeURIComponent(token)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 登录成功，跳转到设置页面
+                    window.location.href = '/settings';
+                } else {
+                    // 显示错误消息
+                    errorMessage.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                errorMessage.style.display = 'block';
+            });
+        });
+    </script>
+</body>
+
+</html>

@@ -1,5 +1,7 @@
 # QRmai
 
+**qq交流群：1058589509 密码：SodaCodeSave/QRmai**
+
 > 帮您在只有基本联网安卓设备（如：手表、翻盖手机）的情况下也能轻松出勤！
 
 在服务端中获取二维码并将图片返回到客户端，灵感来源于[MaimaiHelper](https://github.com/SomeUtils/MaimaiHelper)
@@ -8,7 +10,6 @@
 
 1. 具有更多的自定义选项
 2. 兼容MaimaiHelper APP
-3. 想不出来了
 
 ## 下载
 
@@ -16,13 +17,15 @@
 
 [Github Release](https://github.com/SodaCodeSave/QRmai/releases/latest)
 
-## 部署教程
+## 使用教程
+
+> QRMai使用微信最新版进行测试，不保证微信2可用，请尽可能使用微信最新版
 
 1. 安装[Python3](https://www.python.org/downloads/)
 2. 安装依赖
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/
 ```
 
 3. 运行main.py
@@ -31,7 +34,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-4. 访问http://127.0.0.1:5000/qrmai?token=qrmai
+4. 访问http://127.0.0.1:5000/qrmai?token={你在配置文件中设置的token}
 
 ## 皮肤
 
@@ -54,6 +57,54 @@ python main.py
     "time": 10,  // 超时时间
     "retry_count": 10  // 重试次数
   }
-  "skin_format": "new" // 皮肤格式 new为新版皮肤 二维码居中 old为旧版皮肤 二维码靠下
+  "skin_format": "new", // 皮肤格式 new为新版皮肤 二维码居中 old为旧版皮肤 二维码靠下
+  "dev_mode": false, // 是否开启开发模式 开启后修改代码时无需重启服务器
+  "version": "259e1c35e495e4945bbfa47118aef4d2" // 版本号 用于安全检查验证
 }
 ```
+
+## 打包为可执行文件
+
+本项目提供了两种打包方式：PyInstaller和Nuitka，可以将QRmai打包为独立的Windows可执行文件。
+
+### 使用PyInstaller打包
+
+1. 安装PyInstaller:
+   ```bash
+   pip install pyinstaller
+   ```
+
+2. 获取二维码识别所需的DLL文件:
+   - 下载 `libiconv.dll` 和 `libzbar-64.dll` 文件
+   - 将这些文件放置在 `packaging` 目录中
+
+3. 进入packaging目录并运行打包脚本:
+   ```bash
+   cd packaging
+   python build_exe.py
+   ```
+
+   或者在Windows上双击运行 `packaging/build.bat` 文件。
+
+4. 生成的可执行文件将位于项目根目录的 `dist` 目录中。
+
+### 使用Nuitka打包
+
+1. 安装Nuitka:
+   ```bash
+   pip install nuitka
+   ```
+
+2. 获取二维码识别所需的DLL文件:
+   - 下载 `libiconv.dll` 和 `libzbar-64.dll` 文件
+   - 将这些文件放置在 `packaging` 目录中
+
+3. 进入packaging目录并运行Nuitka打包脚本:
+   ```bash
+   cd packaging
+   python build_nuitka.py
+   ```
+
+4. 生成的可执行文件将位于项目根目录的 `dist` 目录中。
+
+有关详细的打包说明，请参阅 [PACKAGING.md](PACKAGING.md) 文档。
