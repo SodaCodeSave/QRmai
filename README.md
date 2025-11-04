@@ -65,9 +65,9 @@ python main.py
 
 ## 打包为可执行文件
 
-本项目提供了PyInstaller打包脚本，可以将QRmai打包为独立的Windows可执行文件。
+本项目提供了两种打包方式：PyInstaller和Nuitka，可以将QRmai打包为独立的Windows可执行文件。
 
-### 使用方法
+### 使用PyInstaller打包
 
 1. 安装PyInstaller:
    ```bash
@@ -85,6 +85,25 @@ python main.py
    ```
 
    或者在Windows上双击运行 `packaging/build.bat` 文件。
+
+4. 生成的可执行文件将位于项目根目录的 `dist` 目录中。
+
+### 使用Nuitka打包
+
+1. 安装Nuitka:
+   ```bash
+   pip install nuitka
+   ```
+
+2. 获取二维码识别所需的DLL文件:
+   - 下载 `libiconv.dll` 和 `libzbar-64.dll` 文件
+   - 将这些文件放置在 `packaging` 目录中
+
+3. 进入packaging目录并运行Nuitka打包脚本:
+   ```bash
+   cd packaging
+   python build_nuitka.py
+   ```
 
 4. 生成的可执行文件将位于项目根目录的 `dist` 目录中。
 

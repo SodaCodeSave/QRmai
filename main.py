@@ -16,7 +16,7 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 # 图形界面自动化和图像处理相关库
-from pynput.mouse import Controller as MouseController  # 鼠标控制库
+from pynput.mouse import Controller as MouseController, Button  # 鼠标控制库
 import pygetwindow as gw  # 窗口管理库
 import qrcode  # 二维码生成库
 from PIL import Image, ImageDraw, ImageFont  # 图像处理库
@@ -101,7 +101,7 @@ def qrmai_action():
         :param y: y坐标
         """
         mouse.position = (x, y)
-        mouse.click(MouseController().left, 1)
+        mouse.click(Button.left, 1)
 
     # 点击第一个位置(p1) - 通常是"舞萌 | 中二服务号生成二维码按钮的位置"
     move_click(config["p1"][0], config["p1"][1])
@@ -318,7 +318,7 @@ def get_default_config():
             "retry_count": 10
         },
         "skin_format": "new",
-        "dev_mode": True
+        "dev_mode": False
     }
 
 def ensure_config_completeness(config):
