@@ -3,7 +3,7 @@
 """
 QRmai 自动更新模块
 通过GitHub检查更新，自动下载并重启应用
-感谢Qwen-3-Coder编写
+感谢Qwen-3-Coder编写，AI太好用了你们知道吗
 """
 
 import requests
@@ -161,7 +161,7 @@ def is_new_version_available():
         return False, None
 
 def download_and_extract_update(download_url, temp_dir="temp_update"):
-    """下载并解压更新文件"""
+    """下载并处理更新文件（支持exe和zip格式）"""
     try:
         # 创建临时目录
         if os.path.exists(temp_dir):
@@ -183,60 +183,124 @@ def download_and_extract_update(download_url, temp_dir="temp_update"):
         if response.status_code != 200:
             raise Exception(f"下载失败: {response.status_code}")
         
-        # 保存到临时文件
-        zip_path = os.path.join(temp_dir, "update.zip")
-        with open(zip_path, 'wb') as f:
-            f.write(response.content)
-        
-        # 解压文件
-        print("正在解压更新文件...")
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(temp_dir)
-        
-        # 获取解压后的目录名（通常是一个带哈希值的目录）
-        extracted_dirs = [d for d in os.listdir(temp_dir) if os.path.isdir(os.path.join(temp_dir, d)) and d != "__MACOSX"]
-        if not extracted_dirs:
-            raise Exception("解压失败，未找到更新文件")
-        
-        extracted_dir = os.path.join(temp_dir, extracted_dirs[0])
-        return extracted_dir
+        # 根据文件扩展名确定处理方式
+        if download_url.endswith('.exe'):
+            # 处理exe文件 (QRmai-{打包器}-windows-{版本号}.exe)
+            print("检测到exe格式更新文件...")
+            # 从URL中提取文件名
+            filename = download_url.split('/')[-1]
+            file_path = os.path.join(temp_dir, filename)
+            
+            # 保存exe文件
+            with open(file_path, 'wb') as f:
+                f.write(response.content)
+            
+            print(f"更新文件已保存到: {file_path}")
+            # 对于exe文件，返回文件路径而不是解压目录
+            return file_path
+        else:
+            # 处理原有的zip文件格式
+            print("检测到zip格式更新文件...")
+            # 保存到临时文件
+            zip_path = os.path.join(temp_dir, "update.zip")
+            with open(zip_path, 'wb') as f:
+                f.write(response.content)
+            
+            # 解压文件
+            print("正在解压更新文件...")
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+            
+            # 获取解压后的目录名（通常是一个带哈希值的目录）
+            extracted_dirs = [d for d in os.listdir(temp_dir) if os.path.isdir(os.path.join(temp_dir, d)) and d != "__MACOSX"]
+            if not extracted_dirs:
+                raise Exception("解压失败，未找到更新文件")
+            
+            extracted_dir = os.path.join(temp_dir, extracted_dirs[0])
+            return extracted_dir
     except Exception as e:
-        print(f"下载或解压更新时出错: {str(e)}")
+        print(f"下载或处理更新时出错: {str(e)}")
         return None
 
-def apply_update(extracted_dir):
-    """应用更新文件"""
+def apply_update(update_path):
+    """应用更新文件（支持exe和目录两种格式）"""
     try:
-        print("正在应用更新...")
-        # 获取当前目录下的所有文件和文件夹
-        current_files = set(os.listdir('.'))
-        
-        # 获取解压目录下的所有文件和文件夹（排除.git等隐藏文件）
-        update_files = set(os.listdir(extracted_dir))
-        update_files = {f for f in update_files if not f.startswith('.') and f != 'README.md'}
-        
-        # 复制更新文件（保留配置文件）
-        protected_files = {'config.json', 'skin.png', 'version.txt'}
-        
-        for item in update_files:
-            src = os.path.join(extracted_dir, item)
-            dst = os.path.join('.', item)
+        # 检查是exe文件还是目录
+        if os.path.isfile(update_path) and update_path.endswith('.exe'):
+            # 处理exe文件 - 直接替换当前exe程序
+            print("正在替换当前exe程序...")
+            print(f"更新文件路径: {update_path}")
             
-            # 保护重要文件不被覆盖
-            if item in protected_files and os.path.exists(dst):
-                print(f"跳过保护文件: {item}")
-                continue
+            # 在Windows上直接替换当前exe文件
+            if sys.platform.startswith('win'):
+                # 获取当前运行的exe文件路径
+                current_exe = sys.executable
+                print(f"当前exe文件路径: {current_exe}")
+                
+                # 创建替换脚本，在单独进程中执行替换操作
+                # 这样可以避免在文件被占用时无法替换的问题
+                script_content = f'''
+@echo off
+echo 等待应用程序关闭...
+timeout /t 2 /nobreak >nul
+echo 正在替换程序文件...
+copy "{update_path}" "{current_exe}"
+if %errorlevel% equ 0 (
+    echo 程序更新成功!
+) else (
+    echo 程序更新失败!
+)
+del "%~f0"
+"{current_exe}"
+'''
+                
+                # 将替换脚本保存到临时文件
+                script_path = os.path.join(os.path.dirname(current_exe), "update_script.bat")
+                with open(script_path, 'w') as f:
+                    f.write(script_content)
+                
+                # 启动替换脚本并退出当前进程
+                subprocess.Popen([script_path], shell=True, close_fds=True)
+                print("更新脚本已启动，应用程序将关闭并进行自我替换。")
+                return True
+            else:
+                print("当前平台不支持exe更新文件")
+                return False
+        elif os.path.isdir(update_path):
+            # 处理原有的目录格式（zip解压后的目录）
+            print("正在应用更新...")
+            # 获取当前目录下的所有文件和文件夹
+            current_files = set(os.listdir('.'))
             
-            if os.path.isfile(src):
-                shutil.copy2(src, dst)
-                print(f"更新文件: {item}")
-            elif os.path.isdir(src):
-                if os.path.exists(dst):
-                    shutil.rmtree(dst)
-                shutil.copytree(src, dst)
-                print(f"更新目录: {item}")
-        
-        return True
+            # 获取解压目录下的所有文件和文件夹（排除.git等隐藏文件）
+            update_files = set(os.listdir(update_path))
+            update_files = {f for f in update_files if not f.startswith('.') and f != 'README.md'}
+            
+            # 复制更新文件（保留配置文件）
+            protected_files = {'config.json', 'skin.png', 'version.txt'}
+            
+            for item in update_files:
+                src = os.path.join(update_path, item)
+                dst = os.path.join('.', item)
+                
+                # 保护重要文件不被覆盖
+                if item in protected_files and os.path.exists(dst):
+                    print(f"跳过保护文件: {item}")
+                    continue
+                
+                if os.path.isfile(src):
+                    shutil.copy2(src, dst)
+                    print(f"更新文件: {item}")
+                elif os.path.isdir(src):
+                    if os.path.exists(dst):
+                        shutil.rmtree(dst)
+                    shutil.copytree(src, dst)
+                    print(f"更新目录: {item}")
+            
+            return True
+        else:
+            print(f"未知的更新文件类型: {update_path}")
+            return False
     except Exception as e:
         print(f"应用更新时出错: {str(e)}")
         return False
@@ -279,21 +343,29 @@ def check_and_update():
         
         # 如果有下载链接，则尝试下载更新
         if latest_release['download_url']:
-            extracted_dir = download_and_extract_update(latest_release['download_url'])
-            if extracted_dir:
-                if apply_update(extracted_dir):
-                    # 更新版本文件
-                    if update_version_file(latest_release['version']):
-                        print("更新成功!")
-                        # 清理临时文件
-                        shutil.rmtree("temp_update", ignore_errors=True)
+            update_path = download_and_extract_update(latest_release['download_url'])
+            if update_path:
+                # 应用更新
+                if apply_update(update_path):
+                    # 检查是exe文件还是目录格式
+                    if os.path.isfile(update_path) and update_path.endswith('.exe'):
+                        # 对于exe文件，程序已经自我替换了，不需要额外操作
+                        print("程序已成功自我替换，应用程序将重新启动。")
                         return True
                     else:
-                        print("版本文件更新失败")
+                        # 对于目录格式，需要手动更新版本文件和清理临时文件
+                        # 更新版本文件
+                        if update_version_file(latest_release['version']):
+                            print("更新成功!")
+                            # 清理临时文件
+                            shutil.rmtree("temp_update", ignore_errors=True)
+                            return True
+                        else:
+                            print("版本文件更新失败")
                 else:
                     print("应用更新失败")
             else:
-                print("下载或解压更新失败")
+                print("下载或处理更新失败")
         else:
             print("未找到下载链接")
     else:
