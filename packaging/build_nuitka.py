@@ -49,6 +49,7 @@ def build_executable():
         "--include-package=pyzbar",       # 包含pyzbar包
         "--include-package=flask",        # 包含flask包
         "--include-package=pygetwindow",  # 包含pygetwindow包
+        "--include-package=pywin32",      # 包含pywin32包
         "--show-progress",                # 显示编译进度
         "--show-memory",                  # 显示内存使用情况
     ]

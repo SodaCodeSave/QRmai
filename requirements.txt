@@ -1,7 +1,9 @@
-Flask
-pynput
-pygetwindow
-qrcode
-Pillow
-mss
-pyzbar
+Flask>=2.0
+pynput>=1.7
+pygetwindow>=0.0.9
+qrcode[pil]>=7.3
+Pillow>=8.0
+mss>=6.1
+pyzbar>=0.1
+psutil>=5.8
+pywin32>=227

@@ -72,7 +72,8 @@ def build_executable():
         "PIL",
         "mss",
         "pyzbar",
-        "flask"
+        "flask",
+        "pywin32"
     ]
     
     for imp in hidden_imports:
