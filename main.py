@@ -34,7 +34,8 @@ from uuid import uuid4
 # Windows API 相关库用于操作进程窗口
 import ctypes
 from ctypes import wintypes
-from win32 import win32gui, win32process, win32con
+from win32 import win32gui, win32process
+import win32con
 
 # 初始化鼠标控制器
 mouse = MouseController()
@@ -426,6 +427,39 @@ def check_update():
         return jsonify({
             'error': True,
             'message': f'检查更新时出错: {str(e)}'
+        }), 500
+
+@app.route('/manual_update', methods=['POST'])
+@require_auth
+def manual_update():
+    """手动更新的路由"""
+    try:
+        # 导入updater模块
+        import updater
+
+        # 检查是否有新版本并执行更新
+        has_update, latest_release = updater.is_new_version_available()
+
+        if has_update and latest_release:
+            # 执行更新
+            success = updater.check_and_update()
+
+            if success:
+                # 更新成功，返回200状态码
+                return '', 200
+            else:
+                # 更新失败
+                return jsonify({
+                    'error': True,
+                    'message': '更新失败'
+                }), 500
+        else:
+            # 无更新可用，返回204状态码
+            return '', 204
+    except Exception as e:
+        return jsonify({
+            'error': True,
+            'message': f'手动更新时出错: {str(e)}'
         }), 500
 
 def get_default_config():

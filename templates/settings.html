@@ -165,7 +165,8 @@
                     QRmaiqq交流群：1058589509 密码：SodaCodeSave/QRmai <br>
                     遇到问题请先在群里反馈
                 </div>
-                <mdui-button id="checkUpdateBtn" variant="filled">检查更新</mdui-button>
+                <mdui-button id="checkUpdateBtn" variant="outlined">检查更新</mdui-button>
+                <mdui-button id="manualUpdateBtn" variant="filled" color="primary" style="margin-left: 8px;">手动更新</mdui-button>
                 <div id="updateStatus" style="margin-top: 16px; display: none;"></div>
             </div>
         </mdui-card>
@@ -240,12 +241,12 @@
         document.getElementById('checkUpdateBtn').addEventListener('click', function () {
             const btn = this;
             const statusDiv = document.getElementById('updateStatus');
-            
+
             // 禁用按钮并显示加载状态
             btn.disabled = true;
             btn.textContent = '检查中...';
             statusDiv.style.display = 'none';
-            
+
             // 发送检查更新请求
             fetch('/check_update', {
                 method: 'POST'
@@ -280,6 +281,55 @@
                 // 恢复按钮状态
                 btn.disabled = false;
                 btn.textContent = '检查更新';
+            });
+        });
+
+        // 手动更新按钮事件
+        document.getElementById('manualUpdateBtn').addEventListener('click', function () {
+            const btn = this;
+            const statusDiv = document.getElementById('updateStatus');
+
+            // 确认是否要进行更新
+            if (!confirm('确定要进行手动更新吗？更新过程中程序可能会重启。')) {
+                return;
+            }
+
+            // 禁用按钮并显示加载状态
+            btn.disabled = true;
+            btn.textContent = '更新中...';
+            statusDiv.style.display = 'none';
+
+            // 发送手动更新请求
+            fetch('/manual_update', {
+                method: 'POST'
+            })
+            .then(response => {
+                if (response.status === 200) {
+                    // 更新成功
+                    statusDiv.innerHTML = '<mdui-alert variant="success">更新成功！程序将自动重启。</mdui-alert>';
+                    // 显示更新成功提示一段时间后刷新页面
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 3000);
+                } else if (response.status === 204) {
+                    // 无更新可用
+                    statusDiv.innerHTML = '<mdui-alert variant="info">当前已是最新版本，无需更新。</mdui-alert>';
+                } else if (response.status === 500) {
+                    // 更新失败
+                    return response.json().then(data => {
+                        throw new Error(data.message || '更新失败');
+                    });
+                }
+            })
+            .catch(error => {
+                // 显示错误信息
+                statusDiv.innerHTML = `<mdui-alert variant="error">更新失败: ${error.message}</mdui-alert>`;
+                statusDiv.style.display = 'block';
+            })
+            .finally(() => {
+                // 恢复按钮状态
+                btn.disabled = false;
+                btn.textContent = '手动更新';
             });
         });
     </script>
