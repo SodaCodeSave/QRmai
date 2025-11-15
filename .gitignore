@@ -162,3 +162,4 @@ cython_debug/
 skin.png
 packaging/libiconv.dll
 packaging/libzbar-64.dll
+config.json

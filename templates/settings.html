@@ -68,6 +68,10 @@
                         <mdui-text-field label="访问令牌" name="token" value="{{ config.get('token', '') }}"
                             helper="访问二维码页面所需的令牌"></mdui-text-field>
 
+                        <!-- QR Route -->
+                        <mdui-text-field label="二维码访问路径" name="qr_route" value="{{ config.get('qr_route', '/qrmai') }}"
+                            helper="二维码服务的访问路径（例如：/qrmai, /qrcode）"></mdui-text-field>
+
                         <!-- Host -->
                         <mdui-text-field label="服务器地址" name="host" value="{{ config.get('host', '127.0.0.1') }}"
                             helper="设置为0.0.0.0可内网访问"></mdui-text-field>
@@ -184,10 +188,9 @@
             form.addEventListener('submit', function (e) {
                 e.preventDefault();
 
-                // 创建FormData对象
+                // 创建FormData对象并发送POST请求
                 const formData = new FormData(this);
 
-                // 发送POST请求
                 fetch('/settings', {
                     method: 'POST',
                     body: formData

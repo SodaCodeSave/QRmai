@@ -40,6 +40,43 @@ import win32con
 # 初始化鼠标控制器
 mouse = MouseController()
 
+def get_default_config():
+    """获取默认配置项"""
+    return {
+        "p1": [1087, 799],
+        "p2": [945, 682],
+        "token": "qrmai",
+        "host": "0.0.0.0",
+        "port": 5000,
+        "qr_route": "/qrmai",  # 二维码访问路径
+        "cache_duration": 60,
+        "standalone_mode": False,
+        "decode": {
+            "time": 10,
+            "retry_count": 10
+        },
+        "skin_format": "new",
+        "dev_mode": False
+    }
+
+
+def ensure_config_completeness(config):
+    """确保配置项完整，缺失的项用默认值补全"""
+    default_config = get_default_config()
+
+    # 检查并补全顶层配置项
+    for key, default_value in default_config.items():
+        if key not in config:
+            config[key] = default_value
+        # 对于嵌套字典，也需要检查完整性
+        elif isinstance(default_value, dict) and isinstance(config[key], dict):
+            for sub_key, sub_default_value in default_value.items():
+                if sub_key not in config[key]:
+                    config[key][sub_key] = sub_default_value
+
+    return config
+
+
 def kill_wechat_process():
     """
     杀死WeChatAppEx.exe进程
@@ -68,6 +105,24 @@ def kill_wechat_process():
             print("使用taskkill命令杀死微信进程")
         except subprocess.CalledProcessError:
             print("使用taskkill命令杀死微信进程失败")
+
+# 读取配置文件
+config = {}
+config_path = resource_path('config.json')
+if os.path.exists(config_path):
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = json.load(f)
+
+# 确保配置项完整
+config = ensure_config_completeness(config)
+
+# 更新配置版本信息（如果尚未存在）
+if 'version' not in config:
+    import hashlib
+    import time
+    import os
+    config_version = hashlib.md5((config['token'] + str(os.path.getmtime(config_path))).encode()).hexdigest()
+    config['version'] = config_version
 
 # 初始化Flask应用
 app = Flask(__name__, template_folder=resource_path('templates'))
@@ -382,6 +437,10 @@ def settings():
                 # 检查是否更新了token
                 if key == 'token' and value != old_token:
                     token_updated = True
+            elif key == "qr_route":  # 处理新的配置项
+                config[key] = value
+                # 二维码路由路径更改，需要更新路由
+                # 注意：在当前请求中无法动态修改路由，需要重启服务
 
         # 保存更新后的config到文件
         with open('config.json', 'w', encoding='utf-8') as f:
@@ -462,52 +521,35 @@ def manual_update():
             'message': f'手动更新时出错: {str(e)}'
         }), 500
 
-def get_default_config():
-    """获取默认配置项"""
-    return {
-        "p1": [1087, 799],
-        "p2": [945, 682],
-        "token": "qrmai",
-        "host": "0.0.0.0",
-        "port": 5000,
-        "cache_duration": 60,
-        "standalone_mode": False,
-        "decode": {
-            "time": 10,
-            "retry_count": 10
-        },
-        "skin_format": "new",
-        "dev_mode": False
-    }
 
-def ensure_config_completeness(config):
-    """确保配置项完整，缺失的项用默认值补全"""
-    default_config = get_default_config()
+# 读取配置文件
+config = {}
+config_path = resource_path('config.json')
+if os.path.exists(config_path):
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = json.load(f)
 
-    # 检查并补全顶层配置项
-    for key, default_value in default_config.items():
-        if key not in config:
-            config[key] = default_value
-        # 对于嵌套字典，也需要检查完整性
-        elif isinstance(default_value, dict) and isinstance(config[key], dict):
-            for sub_key, sub_default_value in default_value.items():
-                if sub_key not in config[key]:
-                    config[key][sub_key] = sub_default_value
+# 确保配置项完整
+config = ensure_config_completeness(config)
 
-    return config
+# 更新配置版本信息（如果尚未存在）
+if 'version' not in config:
+    import hashlib
+    import time
+    import os
+    config_version = hashlib.md5((config['token'] + str(os.path.getmtime(config_path))).encode()).hexdigest()
+    config['version'] = config_version
 
 # 程序入口点
 if __name__ == '__main__':
-    # 导入json模块用于读取配置文件
-    from json import load as json_load
     import hashlib
     import time
 
     # 读取配置文件
     if os.path.exists('config.json'):
         with open('config.json', 'r', encoding='utf-8') as f:
-            config = json_load(f)
-        config = ensure_config_completeness(config)
+            config_from_file = json.load(f)
+        config = ensure_config_completeness(config_from_file)
         # 保存补全后的配置
         with open('config.json', 'w', encoding='utf-8') as f:
             json.dump(config, f, ensure_ascii=False, indent=4)
@@ -523,6 +565,10 @@ if __name__ == '__main__':
         # 添加配置版本标识
         config_version = hashlib.md5((config['token'] + str(time.time())).encode()).hexdigest()
         config['version'] = config_version
+
+    # 根据配置动态注册二维码路由
+    qr_route = config.get('qr_route', '/qrmai')
+    app.add_url_rule(qr_route, 'qrmai', qrmai)
 
     # 启动Flask应用，使用配置中的主机和端口
     from webbrowser import open as open_webbrowser

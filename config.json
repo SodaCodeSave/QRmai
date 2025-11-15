@@ -10,6 +10,7 @@
     "token": "qrmai",
     "host": "0.0.0.0",
     "port": 5000,
+    "qr_route": "/",
     "cache_duration": 60,
     "standalone_mode": false,
     "decode": {
@@ -17,5 +18,6 @@
         "retry_count": 10
     },
     "skin_format": "new",
-    "dev_mode": false
+    "dev_mode": false,
+    "version": "46891747f278786454de5b5e83a097e4"
 }
