@@ -125,11 +125,17 @@ jobs:
         tag_name: ${{ env.VERSION }}
         name: ${{ env.VERSION }}
         body: |
-          **后缀带有action字样为Action版 由Github Actions自动构建 不包含所需的dll文件（libiconv.dll、libzbar-64.dll） 但文件体积较小**
+          关于版本选择请看下表：
+          | 项           | 位置  | 构建            | 准备工作                                                                                                                             | 说明                       |
+          |-------------|-----|---------------|----------------------------------------------------------------------------------------------------------------------------------|--------------------------|
+          | windows     | 第二项 | 所有            | Windows 10及以上系统                                                                                                                  |                          |
+          | pyinstaller | 第三项 | 所有            |                                                                                                                                  |                          |
+          | nuitka      | 第三项 | 所有            | 任意支持解压zip的工具                                                                                                                     |                          |
+          | ${{ env.VERSION }}    | 第四项 | 所有            |                                                                                                                                  | 版本命名规则为v大版本.大更新.小补丁-测试版本 |
+          | 无内容         | 第五项 | 发布者           |                                                                                                                                  |                          |
+          | action      | 第五项 | Github Action | 准备[Visual C++ Redistributable Packages for Visual Studio 2013](https://www.microsoft.com/en-us/download/details.aspx?id=40784)环境 |                          |
           
-          **如过想要运行Action版, 请先下载[Visual C++ Redistributable Packages for Visual Studio 2013](https://www.microsoft.com/en-us/download/details.aspx?id=40784)环境**
-          
-          **或者 你也可以手动寻找并下载所需的dll文件**
+          如 Windows11系统 没有特殊需求 不考虑杀毒软件 则下载 QRmai-windows-pyinstaller-${{ env.VERSION }}.exe
 
           更新简介:
           ${{ env.COMMIT_MESSAGES }}
