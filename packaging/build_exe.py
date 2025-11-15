@@ -185,8 +185,14 @@ def main():
         show_file_info()
 
         # Ask to clean up temporary files
-        choice = input("\nDelete build temp files? (y/N): ")
-        if choice.lower() == 'y':
+        # Check if stdin is available (important for CI/CD environments)
+        if sys.stdin.isatty():
+            choice = input("\nDelete build temp files? (y/N): ")
+            if choice.lower() == 'y':
+                cleanup()
+        else:
+            # In non-interactive environments (like CI/CD), automatically clean up
+            print("\nNon-interactive environment detected. Cleaning up temporary files...")
             cleanup()
 
         print("\nPackaging script completed!")
