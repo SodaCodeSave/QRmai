@@ -34,7 +34,7 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/
 python main.py
 ```
 
-4. 访问http://127.0.0.1:5000/qrmai?token={你在配置文件中设置的token}
+4. 访问http://127.0.0.1:5000/?token={你在配置文件中设置的token}
 
 ## 皮肤
 
