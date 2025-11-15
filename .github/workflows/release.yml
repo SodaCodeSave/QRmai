@@ -89,7 +89,7 @@ jobs:
 
         # 重命名生成的exe文件
         $version = $env:VERSION
-        $newName = "QRmai-pyinstaller-windows-$version.exe"
+        $newName = "QRmai-windows-pyinstaller-$version-action.exe"
         Copy-Item "dist/QRmai.exe" "dist/$newName"
         echo "Renamed executable to: $newName"
 
@@ -123,9 +123,8 @@ jobs:
         tag_name: ${{ env.VERSION }}
         name: ${{ env.VERSION }}
         body: |
-          Release ${{ env.VERSION }}
-
-          Changes since last release:
+          **后缀带有action字样的构建版本由Github Actions自动构建，请自行下载[Visual C++ Redistributable Packages for Visual Studio 2013](https://www.microsoft.com/en-us/download/details.aspx?id=40784)**
+          更新简介:
           ```
           ${{ env.COMMIT_MESSAGES }}
           ```
