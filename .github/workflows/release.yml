@@ -115,7 +115,7 @@ jobs:
         $commitList = $commits -split "`n" | Where-Object { $_ -ne "" } | ForEach-Object { "- $_" }
         $commitList = $commitList -replace '"', '""'  # 转义双引号
         echo "COMMIT_MESSAGES<<EOF" >> $env:GITHUB_ENV
-        echo "$commitList" >> $env:GITHUB_ENV
+        $commitList | ForEach-Object { echo "$_" >> $env:GITHUB_ENV }
         echo "EOF" >> $env:GITHUB_ENV
       shell: pwsh
 
