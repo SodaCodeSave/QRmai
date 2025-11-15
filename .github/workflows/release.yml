@@ -74,13 +74,16 @@ jobs:
 
     - name: Run build script
       run: |
+        # Set Python to use UTF-8 encoding
+        $env:PYTHONIOENCODING = "utf-8"
+        python -c "import sys; print('Python version:', sys.version); print('Default encoding:', sys.getdefaultencoding())"
         python packaging/build_exe.py
 
     - name: Prepare release assets
       run: |
         # 检查构建结果
         if (-Not (Test-Path "dist/QRmai.exe")) {
-          echo "错误: 没有找到构建的可执行文件"
+          echo "Error: Executable not found"
           exit 1
         }
 
@@ -95,7 +98,7 @@ jobs:
           $size = (Get-Item "dist/$newName").Length
           echo "File size: $([math]::Round($size / 1MB, 2)) MB"
         } else {
-          echo "错误: 重命名失败"
+          echo "Error: Rename failed"
           exit 1
         }
       shell: pwsh
