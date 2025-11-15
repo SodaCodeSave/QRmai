@@ -1,110 +1,202 @@
-# QRmai
+# QRmai - 动态截取舞萌DX、中二节奏二维码并返还给客户端
 
-**qq交流群：1058589509 密码：SodaCodeSave/QRmai**
+**QQ交流群：1058589509**（入群密码：SodaCodeSave/QRmai）
 
-> 帮您在只有基本联网安卓设备（如：手表、翻盖手机）的情况下也能轻松出勤！
+> 专为仅有基本联网功能的安卓设备（如手表、翻盖手机等）设计，助您轻松完成各类SEGA类街机游戏登录需求！
 
-在服务端中获取二维码并将图片返回到客户端，灵感来源于[MaimaiHelper](https://github.com/SomeUtils/MaimaiHelper)
+服务端生成二维码并返回给客户端，灵感源自 [MaimaiHelper](https://github.com/SomeUtils/MaimaiHelper)
 
-## 为什么使用QRmai
+## 🚀 软件特色
 
-1. 具有更多的自定义选项
-2. 兼容MaimaiHelper APP
+- **广泛兼容**：支持各类可以使用浏览器联网的设备，包括智能手表、功能手机等
+- **高度自定义**：灵活配置，满足不同使用场景
+- **无缝兼容**：完全支持 MaimaiHelper 应用
+- **跨网络访问**：支持局域网访问和互联网穿透，随时随地获取二维码
 
-## 下载
+## 📦 快速下载
 
-[123云盘](https://www.123865.com/s/4FlLVv-yI48d)
+- [GitHub Release](https://github.com/SodaCodeSave/QRmai/releases/latest)（推荐）
+- [QQ群文件](https://qm.qq.com/q/ogml35lzwG)（推荐）（入群密码：SodaCodeSave/QRmai）
+- [123云盘下载](https://www.123865.com/s/4FlLVv-yI48d)
 
-[Github Release](https://github.com/SodaCodeSave/QRmai/releases/latest)
+## 🛠️ 快速上手
 
-## 使用教程
+> ⚠️ 温馨提醒：本程序已使用微信最新版（4.1.2.17）进行测试，无法保证微信3.0.x.x版本的兼容性，请尽量使用微信最新版以获得最佳体验
 
-> QRMai使用微信最新版进行测试，不保证微信2可用，请尽可能使用微信最新版
+### 方式一：直接使用可执行文件（推荐新手）
 
-1. 安装[Python3](https://www.python.org/downloads/)
-2. 安装依赖
+1. 从上述下载链接获取预编译的可执行文件
+2. 解压后双击运行
+3. 按照提示配置（如需修改配置，编辑同目录下的 `config.json` 或访问图形化配置界面）
+4. 访问 `http://127.0.0.1:5000/?token={配置文件中的token}` 查看二维码
 
-```bash
-pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/
-```
+### 方式二：源码部署（适合开发者）
 
-3. 运行main.py
+1. **安装 Python3**
+   如果尚未安装，请从 [Python官网](https://www.python.org/downloads/) 下载安装
 
-```bash
-python main.py
-```
+2. **安装依赖包**
+   打开命令行/终端，执行以下命令：
+   ```bash
+   pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/
+   ```
 
-4. 访问http://127.0.0.1:5000/?token={你在配置文件中设置的token}
+3. **启动服务**
+   在项目根目录执行：
+   ```bash
+   python main.py
+   ```
 
-## 皮肤
+4. **访问服务**
+   浏览器打开 `http://127.0.0.1:5000/?token={你在配置文件中设置的token}`
 
-将你下载好的皮肤放在程序同目录，并重命名为skin.png
+## 🌐 内网穿透 - 互联网访问
 
-制作好的皮肤可以在这里下载：[123云盘](https://www.123865.com/s/4FlLVv-yI48d)
+如果需要从互联网访问二维码服务（如在外网访问家里的服务），可以使用以下方法：
 
-## 配置文件
+### 使用 SakuraFrp 内网穿透（推荐）
 
-```
+SakuraFrp 是一款稳定可靠的内网穿透工具，支持免费和付费套餐。
+
+#### 步骤 1：注册 SakuraFrp 账号
+1. 访问 [SakuraFrp 官网](https://www.natfrp.com/)
+2. 注册账号并登录
+3. 在主页右上角复制密钥
+
+#### 步骤 2：下载客户端
+1. 进入 [SakuraFrp 客户端下载页面](https://www.natfrp.com/tunnel/download)
+2. 根据您的操作系统下载相应的客户端
+3. 解压缩到任意目录
+
+#### 步骤 3：配置客户端
+1. 运行 SakuraFrp 客户端
+2. 使用您的密钥登录
+
+#### 步骤 4：创建隧道
+1. 登录 SakuraFrp 控制台
+2. 点击"创建隧道"
+3. 配置信息如下：
+   - **隧道名称**：可自定义，如"QRmai服务"
+   - **内网地址**：`127.0.0.1`
+   - **内网端口**：`5000`（或您在 `config.json` 中设置的端口）
+   - **协议类型**：选择 `TCP`
+   - **备注**：可选，用于标识该隧道
+
+#### 步骤 5：启动隧道
+1. 保存隧道配置
+2. 在客户端中启动对应的隧道
+
+#### 步骤 6：访问服务
+1. 隧道启动成功后，在日志中查看分配的域名
+2. 访问地址格式：`http://[分配的域名]/?token={配置文件中的token}`
+3. 例如：`http://abcd1234.natfrp.com/?token=qrmai`
+
+## ⚙️ 配置详解
+
+编辑项目根目录的 `config.json` 文件，根据需要调整以下设置：
+
+当然，也可以进入`http://127.0.0.1:5000/settings`图形化界面进行配置
+
+```json
 {
-  "p1": [1087, 799], // 舞萌 | 中二服务号生成二维码按钮的位置
-  "p2": [945, 682], // 生成后的二维码的消息的位置
-  "token": "qrmai", // 访问二维码的token
-  "host": "127.0.0.1", // 服务器地址 设置成0.0.0.0即可内网访问
-  "port": 5000, // 服务器端口
-  "cache_duration": 60, // 二维码缓存时间（秒），默认60秒
-  "standalone_mode": false, // "舞萌丨中二"公众号是否为使用独立窗口显示
-  "decode": { // 解码重试次数及时间 每次重试的时间为 time除以retry_count
-    "time": 10,  // 超时时间
-    "retry_count": 10  // 重试次数
-  }
-  "skin_format": "new", // 皮肤格式 new为新版皮肤 二维码居中 old为旧版皮肤 二维码靠下
-  "dev_mode": false, // 是否开启开发模式 开启后修改代码时无需重启服务器
-  "version": "259e1c35e495e4945bbfa47118aef4d2" // 版本号 用于安全检查验证
+  "p1": [1087, 799],           // 微信界面中"舞萌/中二"服务号生成二维码按钮的坐标 [x, y]
+  "p2": [945, 682],            // 生成二维码后消息的坐标 [x, y]
+  "token": "qrmai",            // 访问二维码的安全令牌，建议修改为复杂字符串
+  "host": "127.0.0.1",         // 服务器地址，设为"0.0.0.0"可从局域网访问
+  "port": 5000,                // 服务器端口，如5000被占用可改为其他端口
+  "cache_duration": 60,        // 二维码缓存时间（秒），默认60秒，建议保持为60秒
+  "standalone_mode": false,    // 是否使用独立窗口显示"舞萌/中二"公众号界面
+  "decode": {                  // 二维码解码相关设置
+    "time": 10,                // 解码超时时间（秒）
+    "retry_count": 10          // 解码失败时重试次数
+  },
+  "skin_format": "new",        // 皮肤格式："new"为新版（二维码居中）"old"为旧版（二维码靠下）
+  "dev_mode": false,           // 开发模式开关，开启后代码修改无需重启服务器
+  "version": "259e1c35e495e4945bbfa47118aef4d2" // 版本标识（勿修改，用于安全验证）
 }
 ```
 
-## 打包为可执行文件
+### 重要参数说明
 
-本项目提供了两种打包方式：PyInstaller和Nuitka，可以将QRmai打包为独立的Windows可执行文件。
+- **token**: 为保证安全，建议设置为复杂字符串，如使用随机密码生成器生成的字符串
+- **host**:
+  - `"127.0.0.1"` 仅本机可访问
+  - `"0.0.0.0"` 允许局域网内其他设备访问
+- **p1/p2**: 坐标位置需根据实际屏幕分辨率和微信界面进行调整
 
-### 使用PyInstaller打包
+## 🎨 个性化皮肤
 
-1. 安装PyInstaller:
+QRmai 支持自定义皮肤，让二维码页面更美观：
+
+1. 将你喜欢的皮肤图片重命名为 `skin.png`
+2. 将文件放置在程序根目录下
+
+> 💡 获取皮肤：[123云盘](https://www.123865.com/s/4FlLVv-yI48d)
+
+## 📦 打包为可执行文件
+
+本项目支持将应用打包为独立的Windows可执行文件，方便在未安装Python的环境中使用。
+
+### 使用 PyInstaller 打包（推荐）
+
+1. **安装 PyInstaller**:
    ```bash
    pip install pyinstaller
    ```
 
-2. 获取二维码识别所需的DLL文件:
-   - 下载 `libiconv.dll` 和 `libzbar-64.dll` 文件
-   - 将这些文件放置在 `packaging` 目录中
+2. **准备依赖文件**:
+   - 获取二维码识别所需DLL文件：`libiconv.dll` 和 `libzbar-64.dll`
+   - 将这两个文件复制到 `packaging` 目录中
 
-3. 进入packaging目录并运行打包脚本:
+3. **执行打包**:
    ```bash
    cd packaging
    python build_exe.py
    ```
 
-   或者在Windows上双击运行 `packaging/build.bat` 文件。
+   或在Windows系统中双击运行 `packaging/build.bat` 脚本
 
-4. 生成的可执行文件将位于项目根目录的 `dist` 目录中。
+4. **获取可执行文件**: 打包完成后，在项目根目录的 `dist` 文件夹中即可找到生成的可执行文件
 
-### 使用Nuitka打包
+### 使用 Nuitka 打包
 
-1. 安装Nuitka:
+1. **安装 Nuitka**:
    ```bash
    pip install nuitka
    ```
 
-2. 获取二维码识别所需的DLL文件:
-   - 下载 `libiconv.dll` 和 `libzbar-64.dll` 文件
-   - 将这些文件放置在 `packaging` 目录中
+2. **准备依赖文件**:
+   - 同样需要 `libiconv.dll` 和 `libzbar-64.dll`
+   - 将文件放置在 `packaging` 目录中
 
-3. 进入packaging目录并运行Nuitka打包脚本:
+3. **执行打包**:
    ```bash
    cd packaging
    python build_nuitka.py
    ```
 
-4. 生成的可执行文件将位于项目根目录的 `dist` 目录中。
+4. **获取可执行文件**: 完成后，可执行文件位于 `dist` 目录
 
-有关详细的打包说明，请参阅 [PACKAGING.md](PACKAGING.md) 文档。
+> 详细了解打包过程，请查阅 [PACKAGING.md](PACKAGING.md) 文档
+
+## 🤝 常见问题
+
+**Q: 如何让局域网内的设备也能访问二维码？**
+A: 将配置文件中的 `host` 改为 `"0.0.0.0"`，然后使用服务器IP地址访问。
+
+**Q: 二维码生成失败怎么办？**
+A: 确认微信界面处于正确的菜单位置，检查配置文件中的坐标设置是否正确。
+
+**Q: 如何实现外网访问？**
+A: 可以使用内网穿透工具，如 SakuraFrp 或其他服务，具体请参见"内网穿透"章节。
+
+**Q: 什么是图形化配置界面？**
+A: 访问 `http://127.0.0.1:5000/settings` 即可使用网页界面配置各项参数，无需手动编辑 JSON 文件。
+
+## 📞 支持与反馈
+
+如遇问题或有改进建议，请加入我们的QQ交流群：**1058589509**（密码：SodaCodeSave/QRmai）
+
+## 📄 许可证
+
+本项目遵循 [MIT LICENSE](LICENSE) 开源协议
