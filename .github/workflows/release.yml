@@ -134,6 +134,7 @@ jobs:
           | ${{ env.VERSION }} | 4 | 所有          |                                                                                                                                  | 版本命名规则为 v大版本.大更新.小补丁-测试版本 |
           | 无内容      | 5    | 发布者        |                                                                                                                                  |                                            |
           | action      | 5    | Github Action | 准备 [Visual C++ Redistributable Packages for Visual Studio 2013](https://www.microsoft.com/en-us/download/details.aspx?id=40784) 环境 |                                            |
+          
           如 Windows11系统 没有特殊需求 不考虑杀毒软件 则下载 QRmai-windows-pyinstaller-${{ env.VERSION }}.exe
 
           更新简介:
