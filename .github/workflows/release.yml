@@ -111,9 +111,11 @@ jobs:
         } else {
             $commits = git log --oneline --no-merges
         }
-        $commits = $commits -replace '"', '""'  # 转义双引号
+        # Convert to markdown unordered list
+        $commitList = $commits -split "`n" | Where-Object { $_ -ne "" } | ForEach-Object { "- $_" }
+        $commitList = $commitList -replace '"', '""'  # 转义双引号
         echo "COMMIT_MESSAGES<<EOF" >> $env:GITHUB_ENV
-        echo "$commits" >> $env:GITHUB_ENV
+        echo "$commitList" >> $env:GITHUB_ENV
         echo "EOF" >> $env:GITHUB_ENV
       shell: pwsh
 
@@ -123,15 +125,18 @@ jobs:
         tag_name: ${{ env.VERSION }}
         name: ${{ env.VERSION }}
         body: |
-          **后缀带有action字样的构建版本由Github Actions自动构建，请自行下载[Visual C++ Redistributable Packages for Visual Studio 2013](https://www.microsoft.com/en-us/download/details.aspx?id=40784)**
-          更新简介:
-          ```
-          ${{ env.COMMIT_MESSAGES }}
-          ```
+          **后缀带有action字样为Action版 由Github Actions自动构建 不包含所需的dll文件（libiconv.dll、libzbar-64.dll） 但文件体积较小**
+          
+          **如过想要运行Action版, 请先下载[Visual C++ Redistributable Packages for Visual Studio 2013](https://www.microsoft.com/en-us/download/details.aspx?id=40784)环境**
+          
+          **或者 你也可以手动寻找并下载所需的dll文件**
 
-          ${{ contains(env.VERSION, '-alpha') && '⚠️ This is an alpha release' || contains(env.VERSION, '-beta') && '⚠️ This is a beta release' || '' }}
+          更新简介:
+          ${{ env.COMMIT_MESSAGES }}
+
+          ${{ contains(env.VERSION, '-alpha') && '⚠️ 这是一个Alpha测试版本 未经过测试 不建议使用' || contains(env.VERSION, '-beta') && '⚠️ 这是一个Beta测试版本 已经经过测试 但仍不建议使用' || '' }}
         files: |
-          dist/QRmai-pyinstaller-windows-${{ env.VERSION }}.exe
+          dist/QRmai-windows-pyinstaller-${{ env.VERSION }}-action.exe
         draft: false
         prerelease: ${{ contains(env.VERSION, '-alpha') || contains(env.VERSION, '-beta') }}
       env:
