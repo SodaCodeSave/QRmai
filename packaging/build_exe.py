@@ -54,6 +54,36 @@ def build_executable():
     templates_dir = project_root / "templates"
     if templates_dir.exists():
         cmd.extend(["--add-data", f"{templates_dir}{os.pathsep}templates"])
+    
+    # Add config.json to data files
+    config_file = project_root / "config.json"
+    if config_file.exists():
+        cmd.extend(["--add-data", f"{config_file}{os.pathsep}."])
+    else:
+        # If config.json doesn't exist, create a default one and add it
+        print("Creating default config.json for packaging...")
+        default_config = {
+            "p1": [1087, 799],
+            "p2": [945, 682],
+            "token": "qrmai",
+            "host": "0.0.0.0",
+            "port": 5000,
+            "qr_route": "/qrmai",
+            "cache_duration": 60,
+            "standalone_mode": False,
+            "decode": {
+                "time": 10,
+                "retry_count": 10
+            },
+            "skin_format": "new",
+            "dev_mode": False
+        }
+        
+        import json
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump(default_config, f, ensure_ascii=False, indent=4)
+        
+        cmd.extend(["--add-data", f"{config_file}{os.pathsep}."])
 
     # Add DLL files to data files if they exist
     if dll_files_exist:

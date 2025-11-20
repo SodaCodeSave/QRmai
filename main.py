@@ -453,7 +453,10 @@ def settings():
             import hashlib
             import time
             import os
-            config_version = hashlib.md5((config['token'] + str(os.path.getmtime('config.json'))).encode()).hexdigest()
+            try:
+                config_version = hashlib.md5((config['token'] + str(os.path.getmtime(config_path))).encode()).hexdigest()
+            except FileNotFoundError:
+                config_version = hashlib.md5((config['token'] + str(time.time())).encode()).hexdigest()
             config['version'] = config_version
             # 更新session中的配置版本信息
             session['config_version'] = config_version
@@ -540,7 +543,10 @@ if 'version' not in config:
     import hashlib
     import time
     import os
-    config_version = hashlib.md5((config['token'] + str(os.path.getmtime(config_path))).encode()).hexdigest()
+    try:
+        config_version = hashlib.md5((config['token'] + str(os.path.getmtime(config_path))).encode()).hexdigest()
+    except FileNotFoundError:
+        config_version = hashlib.md5((config['token'] + str(time.time())).encode()).hexdigest()
     config['version'] = config_version
 
 # 程序入口点
@@ -549,21 +555,24 @@ if __name__ == '__main__':
     import time
 
     # 读取配置文件
-    if os.path.exists('config.json'):
-        with open('config.json', 'r', encoding='utf-8') as f:
+    if os.path.exists(config_path):
+        with open(config_path, 'r', encoding='utf-8') as f:
             config_from_file = json.load(f)
         config = ensure_config_completeness(config_from_file)
         # 保存补全后的配置
-        with open('config.json', 'w', encoding='utf-8') as f:
+        with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(config, f, ensure_ascii=False, indent=4)
         # 添加配置版本标识，用于增强认证安全性
-        config_version = hashlib.md5((config['token'] + str(os.path.getmtime('config.json'))).encode()).hexdigest()
+        try:
+            config_version = hashlib.md5((config['token'] + str(os.path.getmtime(config_path))).encode()).hexdigest()
+        except FileNotFoundError:
+            config_version = hashlib.md5((config['token'] + str(time.time())).encode()).hexdigest()
         config['version'] = config_version
     else:
         # 如果config.json不存在，则创建默认配置文件
         config = get_default_config()
         # 保存默认配置到文件
-        with open('config.json', 'w', encoding='utf-8') as f:
+        with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(config, f, ensure_ascii=False, indent=4)
         # 添加配置版本标识
         config_version = hashlib.md5((config['token'] + str(time.time())).encode()).hexdigest()
