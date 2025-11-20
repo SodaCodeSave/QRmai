@@ -121,7 +121,10 @@ if 'version' not in config:
     import hashlib
     import time
     import os
-    config_version = hashlib.md5((config['token'] + str(os.path.getmtime(config_path))).encode()).hexdigest()
+    try:
+        config_version = hashlib.md5((config['token'] + str(os.path.getmtime(config_path))).encode()).hexdigest()
+    except FileNotFoundError:
+        config_version = hashlib.md5((config['token'] + str(time.time())).encode()).hexdigest()
     config['version'] = config_version
 
 # 初始化Flask应用
