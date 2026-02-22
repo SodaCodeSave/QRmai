@@ -40,6 +40,12 @@ import win32con
 # 初始化鼠标控制器
 mouse = MouseController()
 
+# 以下两行代码修复了Win10在系统缩放下第一次请求时鼠标移动位置偏移的bug
+# 导入 Shcore.dll
+shcore = ctypes.windll.shcore
+# 设置 DPI 感知模式：0 = 无感知，1 = 系统级感知，2 = 每显示器感知
+shcore.SetProcessDpiAwareness(2)   # 每显示器高 DPI 感知
+
 def get_default_config():
     """获取默认配置项"""
     return {
@@ -56,6 +62,9 @@ def get_default_config():
             "retry_count": 10
         },
         "skin_format": "new",
+        "custom_skin_path": "./skin.png",
+        "custom_skin_qrcode_size": 576,
+        "custom_skin_qrcode_point": [106,638],
         "dev_mode": False
     }
 
@@ -233,13 +242,14 @@ def qrmai_action():
             # 将窗口置于前台并激活
             win32gui.SetForegroundWindow(wechat_hwnd)
             # 设置窗口为最顶层
-            win32gui.SetWindowPos(wechat_hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0, 
+            win32gui.SetWindowPos(wechat_hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0,
                                   win32con.SWP_NOMOVE | win32con.SWP_NOSIZE)
             activation_success = True
             break
         except Exception as e:
             print(f"第 {attempt + 1} 次尝试激活窗口失败: {e}")
             time.sleep(1)  # 等待1秒后重试
+            pass
 
     # 如果激活窗口失败，给出友好提示
     if not activation_success:
@@ -252,7 +262,8 @@ def qrmai_action():
         :param x: x坐标
         :param y: y坐标
         """
-        mouse.position = (x, y)
+
+        mouse.position = (x,y)
         mouse.click(Button.left, 1)
 
     # 点击第一个位置(p1) - 通常是"舞萌 | 中二服务号生成二维码按钮的位置"
@@ -270,6 +281,7 @@ def qrmai_action():
     # 最小化微信窗口以减少干扰
     # 这里需要处理基于窗口句柄的最小化
     try:
+        time.sleep(0.2) #等待0.2秒再最小化，以免还没有点击到二维码就最小化了
         win32gui.ShowWindow(wechat_hwnd, win32con.SW_MINIMIZE)
     except:
         pass
@@ -317,7 +329,11 @@ def qrmai_action():
     import os
     # 如果skin.png存在，则将二维码与皮肤合成
     if "skin.png" in os.listdir():
-        skin = Image.open("skin.png")  # 打开皮肤图片
+
+        if config["skin_format"] == "custom":
+            skin = Image.open(config["custom_skin_path"])
+        else:
+            skin = Image.open("skin.png")  # 打开皮肤图片
         qr_img = qr_img.convert('RGBA')  # 转换二维码为RGBA模式
 
         # 获取二维码尺寸
@@ -331,17 +347,50 @@ def qrmai_action():
                     qr_img.putpixel((x, y), (255, 255, 255, 0))  # 替换为透明像素
 
         # 调整二维码大小为576x576
-        resized_qr = qr_img.resize((576, 576))
+        if config["skin_format"] == "custom":
+            qrcode_size = int(config["custom_skin_qrcode_size"])
+            resized_qr = qr_img.resize((qrcode_size, qrcode_size))
+        else:
+            resized_qr = qr_img.resize((576, 576))
 
         # 根据皮肤格式配置确定粘贴位置
         if config["skin_format"] == "new":
             # 新版皮肤格式，二维码居中
             skin.paste(resized_qr, (106, 638), mask=resized_qr)  # 使用 resize 后的图像作为 mask
-        else:
+        elif config["skin_format"] == "old":
             # 旧版皮肤格式，二维码靠下
             skin.paste(resized_qr, (106, 1060), mask=resized_qr)  # 使用 resize 后的图像作为 mask
+        else:
+            qrcode_point = (config["custom_skin_qrcode_point"][0], config["custom_skin_qrcode_point"][1])
+            skin.paste(resized_qr, qrcode_point, mask=resized_qr)
 
         # 保存合成后的图像到字节流
+        skin.save(img_io, format='PNG')
+
+    #如果没找到skin.png，就判断是不是自定义
+    elif config["skin_format"] == "custom":
+
+        skin = Image.open(config["custom_skin_path"])  # 打开皮肤图片
+        qr_img = qr_img.convert('RGBA')  # 转换二维码为RGBA模式
+
+        # 获取二维码尺寸
+        width, height = qr_img.size
+
+        # 将二维码中的白色区域替换为透明
+        for x in range(width):
+            for y in range(height):
+                r, g, b, a = qr_img.getpixel((x, y))  # 获取当前像素的颜色值
+                if r > 200 and g > 200 and b > 200:  # 判断是否为接近白色的像素
+                    qr_img.putpixel((x, y), (255, 255, 255, 0))  # 替换为透明像素
+
+        # 调整二维码大小为用户设置的
+        qrcode_size = int(config["custom_skin_qrcode_size"])
+        resized_qr = qr_img.resize((qrcode_size, qrcode_size))
+
+        # 获取用户设置的二维码坐标
+        qrcode_point = (config["custom_skin_qrcode_point"][0],config["custom_skin_qrcode_point"][1])
+        skin.paste(resized_qr, qrcode_point, mask=resized_qr)
+
         skin.save(img_io, format='PNG')
     else:
         # 如果没有皮肤文件，则直接保存原始二维码

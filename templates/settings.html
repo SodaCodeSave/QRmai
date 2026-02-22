@@ -107,9 +107,18 @@
                         <label for="skin_format">皮肤格式</label>
                         <mdui-segmented-button-group selects="single" value="{{ config.get('skin_format', 'new') }}"
                             name="skin_format">
-                            <mdui-segmented-button value="new">新版皮肤(二维码居中)</mdui-segmented-button>
-                            <mdui-segmented-button value="old">旧版皮肤(二维码靠下)</mdui-segmented-button>
+                            <mdui-segmented-button value="new">新版皮肤</mdui-segmented-button>
+                            <mdui-segmented-button value="old">旧版皮肤</mdui-segmented-button>
+							<mdui-segmented-button value="custom">自定义皮肤</mdui-segmented-button>
                         </mdui-segmented-button-group>
+						
+						<label for="custom_skin">自定义皮肤设置</label>
+						<mdui-text-field label="皮肤路径" name="custom_skin_path" value="{{ config.get('custom_skin_path', './skin.png') }}"
+                            helper="自定义皮肤的图片位置"></mdui-text-field>
+						<mdui-text-field label="二维码大小" name="custom_skin_qrcode_size" value="{{ config.get('custom_skin_qrcode_size', '576') }}"
+                            helper="自定义皮肤的二维码大小"></mdui-text-field>
+						<mdui-text-field label="二维码坐标" name="custom_skin_qrcode_point" value="{{ config.get('custom_skin_qrcode_point', [106, 638])|join(',') }}"
+                            helper="自定义皮肤的二维码坐标"></mdui-text-field>
 
                         <mdui-button type="submit" variant="filled">保存应用设置</mdui-button>
                     </form>
