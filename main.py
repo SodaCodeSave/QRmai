@@ -406,7 +406,7 @@ def qrmai_action():
     return img_io
 
 # 定义路由 /qrmai
-@app.route('/')
+@app.route(f'{config["qr_route"]}')
 def qrmai():
     """
     处理 /qrmai 路由请求的函数
