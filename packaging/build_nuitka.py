@@ -25,7 +25,10 @@ def build_executable():
     
     # 检查skin.png是否存在
     skin_exists = (project_root / "skin.png").exists()
-    
+
+    # 检查icon.png是否存在
+    icon_exists = (project_root / "icon.png").exists()
+
     # 检查DLL文件是否存在
     libiconv_dll = project_root / "packaging" / "libiconv.dll"
     libzbar_dll = project_root / "packaging" / "libzbar-64.dll"
@@ -53,7 +56,11 @@ def build_executable():
         "--show-progress",                # 显示编译进度
         "--show-memory",                  # 显示内存使用情况
     ]
-    
+
+    # 如果icon.png存在，则设置为可执行文件图标
+    if icon_exists:
+        cmd.extend(["--windows-icon-from-ico=icon.png"])
+
     # 如果skin.png存在，则添加到数据文件中
     if skin_exists:
         cmd.extend(["--include-data-file=skin.png=skin.png"])

@@ -26,6 +26,9 @@ def build_executable():
     # Check if skin.png exists
     skin_exists = (project_root / "skin.png").exists()
 
+    # Check if icon.png exists
+    icon_exists = (project_root / "icon.png").exists()
+
     # Check if DLL files exist
     libiconv_dll = project_root / "packaging" / "libiconv.dll"
     libzbar_dll = project_root / "packaging" / "libzbar-64.dll"
@@ -45,6 +48,10 @@ def build_executable():
         f"--specpath={project_root}",             # Spec file directory
         "--strip",                        # Strip symbols to reduce size
     ]
+
+    # Add icon.png as executable icon if it exists
+    if icon_exists:
+        cmd.extend(["--icon", str(project_root / "icon.png")])
 
     # Add skin.png to data files if it exists
     if skin_exists:
