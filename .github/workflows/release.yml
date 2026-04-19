@@ -90,7 +90,7 @@ jobs:
 
         # 重命名生成的exe文件
         $version = $env:VERSION
-        $newName = "QRmai-windows-pyinstaller-$version-action.exe"
+        $newName = "QRmai-$version-win.exe"
         Copy-Item "dist/QRmai.exe" "dist/$newName"
         echo "Renamed executable to: $newName"
 
