@@ -109,15 +109,18 @@
                             name="skin_format">
                             <mdui-segmented-button value="new">新版皮肤</mdui-segmented-button>
                             <mdui-segmented-button value="old">旧版皮肤</mdui-segmented-button>
-							<mdui-segmented-button value="custom">自定义皮肤</mdui-segmented-button>
+                            <mdui-segmented-button value="custom">自定义皮肤</mdui-segmented-button>
                         </mdui-segmented-button-group>
-						
-						<label for="custom_skin">自定义皮肤设置</label>
-						<mdui-text-field label="皮肤路径" name="custom_skin_path" value="{{ config.get('custom_skin_path', './skin.png') }}"
+
+                        <label for="custom_skin">自定义皮肤设置</label>
+                        <mdui-text-field label="皮肤路径" name="custom_skin_path"
+                            value="{{ config.get('custom_skin_path', './skin.png') }}"
                             helper="自定义皮肤的图片位置"></mdui-text-field>
-						<mdui-text-field label="二维码大小" name="custom_skin_qrcode_size" value="{{ config.get('custom_skin_qrcode_size', '576') }}"
+                        <mdui-text-field label="二维码大小" name="custom_skin_qrcode_size"
+                            value="{{ config.get('custom_skin_qrcode_size', '576') }}"
                             helper="自定义皮肤的二维码大小"></mdui-text-field>
-						<mdui-text-field label="二维码坐标" name="custom_skin_qrcode_point" value="{{ config.get('custom_skin_qrcode_point', [106, 638])|join(',') }}"
+                        <mdui-text-field label="二维码坐标" name="custom_skin_qrcode_point"
+                            value="{{ config.get('custom_skin_qrcode_point', [106, 638])|join(',') }}"
                             helper="自定义皮肤的二维码坐标"></mdui-text-field>
 
                         <mdui-button type="submit" variant="filled">保存应用设置</mdui-button>
@@ -134,7 +137,8 @@
                     </div>
                     <div id="mousePosition"
                         style="margin-bottom: 16px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
-                        当前鼠标坐标: <span id="mouseX">0</span>, <span id="mouseY">0</span>
+                        当前鼠标坐标: <span id="mouseX">0</span>, <span id="mouseY">0</span><br>
+                        只有在网页全屏后才能正确显示鼠标坐标
                     </div>
                     <form method="post" action="/settings" class="setting-form">
                         <!-- P1 Position -->
@@ -179,7 +183,8 @@
                     遇到问题请先在群里反馈
                 </div>
                 <mdui-button id="checkUpdateBtn" variant="outlined">检查更新</mdui-button>
-                <mdui-button id="manualUpdateBtn" variant="filled" color="primary" style="margin-left: 8px;">手动更新</mdui-button>
+                <mdui-button id="manualUpdateBtn" variant="filled" color="primary"
+                    style="margin-left: 8px;">手动更新</mdui-button>
                 <div id="updateStatus" style="margin-top: 16px; display: none;"></div>
             </div>
         </mdui-card>
@@ -263,14 +268,14 @@
             fetch('/check_update', {
                 method: 'POST'
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    // 显示错误信息
-                    statusDiv.innerHTML = `<mdui-alert variant="error">${data.message}</mdui-alert>`;
-                } else if (data.has_update) {
-                    // 显示更新信息
-                    statusDiv.innerHTML = `
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        // 显示错误信息
+                        statusDiv.innerHTML = `<mdui-alert variant="error">${data.message}</mdui-alert>`;
+                    } else if (data.has_update) {
+                        // 显示更新信息
+                        statusDiv.innerHTML = `
                         <mdui-alert variant="info">
                             <div>发现新版本: ${data.version}</div>
                             <div>更新名称: ${data.name}</div>
@@ -278,22 +283,22 @@
                             <div>更新内容: ${data.body || '无'}</div>
                         </mdui-alert>
                     `;
-                } else {
-                    // 显示已是最新版本
-                    statusDiv.innerHTML = `<mdui-alert variant="success">${data.message}</mdui-alert>`;
-                }
-                statusDiv.style.display = 'block';
-            })
-            .catch(error => {
-                // 显示网络错误
-                statusDiv.innerHTML = `<mdui-alert variant="error">网络错误: ${error.message}</mdui-alert>`;
-                statusDiv.style.display = 'block';
-            })
-            .finally(() => {
-                // 恢复按钮状态
-                btn.disabled = false;
-                btn.textContent = '检查更新';
-            });
+                    } else {
+                        // 显示已是最新版本
+                        statusDiv.innerHTML = `<mdui-alert variant="success">${data.message}</mdui-alert>`;
+                    }
+                    statusDiv.style.display = 'block';
+                })
+                .catch(error => {
+                    // 显示网络错误
+                    statusDiv.innerHTML = `<mdui-alert variant="error">网络错误: ${error.message}</mdui-alert>`;
+                    statusDiv.style.display = 'block';
+                })
+                .finally(() => {
+                    // 恢复按钮状态
+                    btn.disabled = false;
+                    btn.textContent = '检查更新';
+                });
         });
 
         // 手动更新按钮事件
@@ -315,34 +320,34 @@
             fetch('/manual_update', {
                 method: 'POST'
             })
-            .then(response => {
-                if (response.status === 200) {
-                    // 更新成功
-                    statusDiv.innerHTML = '<mdui-alert variant="success">更新成功！程序将自动重启。</mdui-alert>';
-                    // 显示更新成功提示一段时间后刷新页面
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 3000);
-                } else if (response.status === 204) {
-                    // 无更新可用
-                    statusDiv.innerHTML = '<mdui-alert variant="info">当前已是最新版本，无需更新。</mdui-alert>';
-                } else if (response.status === 500) {
-                    // 更新失败
-                    return response.json().then(data => {
-                        throw new Error(data.message || '更新失败');
-                    });
-                }
-            })
-            .catch(error => {
-                // 显示错误信息
-                statusDiv.innerHTML = `<mdui-alert variant="error">更新失败: ${error.message}</mdui-alert>`;
-                statusDiv.style.display = 'block';
-            })
-            .finally(() => {
-                // 恢复按钮状态
-                btn.disabled = false;
-                btn.textContent = '手动更新';
-            });
+                .then(response => {
+                    if (response.status === 200) {
+                        // 更新成功
+                        statusDiv.innerHTML = '<mdui-alert variant="success">更新成功！程序将自动重启。</mdui-alert>';
+                        // 显示更新成功提示一段时间后刷新页面
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 3000);
+                    } else if (response.status === 204) {
+                        // 无更新可用
+                        statusDiv.innerHTML = '<mdui-alert variant="info">当前已是最新版本，无需更新。</mdui-alert>';
+                    } else if (response.status === 500) {
+                        // 更新失败
+                        return response.json().then(data => {
+                            throw new Error(data.message || '更新失败');
+                        });
+                    }
+                })
+                .catch(error => {
+                    // 显示错误信息
+                    statusDiv.innerHTML = `<mdui-alert variant="error">更新失败: ${error.message}</mdui-alert>`;
+                    statusDiv.style.display = 'block';
+                })
+                .finally(() => {
+                    // 恢复按钮状态
+                    btn.disabled = false;
+                    btn.textContent = '手动更新';
+                });
         });
     </script>
 </body>

@@ -3,14 +3,25 @@ import json  # JSON操作库
 import os
 import sys
 import time  # 时间相关操作
+import logging
 from io import BytesIO  # 用于处理字节流
 
 # Flask框架相关模块
-from flask import Flask, render_template, request, Response, session, redirect, url_for, jsonify
+from flask import (
+    Flask,
+    render_template,
+    request,
+    Response,
+    session,
+    redirect,
+    url_for,
+    jsonify,
+)
 
 # 外部库导入
 import psutil  # 进程管理库
 import subprocess  # 用于运行系统命令
+
 
 def resource_path(relative_path):
     """获取资源文件的绝对路径"""
@@ -21,6 +32,73 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
 
     return os.path.join(base_path, relative_path)
+
+
+def setup_logging():
+    """配置日志，将日志保存到logs文件夹"""
+    # 获取程序根目录
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    # 创建logs文件夹路径
+    logs_dir = os.path.join(base_path, "logs")
+
+    # 如果logs文件夹不存在，则创建
+    if not os.path.exists(logs_dir):
+        os.makedirs(logs_dir)
+
+    # 日志文件名（按日期）
+    log_file = os.path.join(logs_dir, time.strftime("%Y-%m-%d") + ".log")
+
+    # 配置logging
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    # 避免重复添加handler
+    if logger.handlers:
+        logger.handlers.clear()
+
+    # 创建文件handler，写入日志文件
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setLevel(logging.INFO)
+
+    # 创建控制台handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+
+    # 设置日志格式
+    formatter = logging.Formatter(
+        "%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+
+    # 添加handler
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    return logger, logs_dir
+
+
+# 初始化日志
+logger, logs_dir = setup_logging()
+logger.info("日志系统初始化")
+
+# 配置Flask/werkzeug日志，使用相同的日志文件和格式
+werkzeug_logger = logging.getLogger("werkzeug")
+werkzeug_logger.setLevel(logging.INFO)
+werkzeug_handler = logging.FileHandler(
+    os.path.join(logs_dir, time.strftime("%Y-%m-%d") + ".log"), encoding="utf-8"
+)
+werkzeug_handler.setLevel(logging.INFO)
+werkzeug_formatter = logging.Formatter(
+    "%(asctime)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+)
+werkzeug_handler.setFormatter(werkzeug_formatter)
+werkzeug_logger.addHandler(werkzeug_handler)
+
 
 # 图形界面自动化和图像处理相关库
 from pynput.mouse import Controller as MouseController, Button  # 鼠标控制库
@@ -44,7 +122,8 @@ mouse = MouseController()
 # 导入 Shcore.dll
 shcore = ctypes.windll.shcore
 # 设置 DPI 感知模式：0 = 无感知，1 = 系统级感知，2 = 每显示器感知
-shcore.SetProcessDpiAwareness(2)   # 每显示器高 DPI 感知
+shcore.SetProcessDpiAwareness(2)  # 每显示器高 DPI 感知
+
 
 def get_default_config():
     """获取默认配置项"""
@@ -57,15 +136,12 @@ def get_default_config():
         "qr_route": "/qrmai",  # 二维码访问路径
         "cache_duration": 60,
         "standalone_mode": False,
-        "decode": {
-            "time": 10,
-            "retry_count": 10
-        },
+        "decode": {"time": 10, "retry_count": 10},
         "skin_format": "new",
         "custom_skin_path": "./skin.png",
         "custom_skin_qrcode_size": 576,
-        "custom_skin_qrcode_point": [106,638],
-        "dev_mode": False
+        "custom_skin_qrcode_point": [106, 638],
+        "dev_mode": False,
     }
 
 
@@ -93,51 +169,60 @@ def kill_wechat_process():
     try:
         # 方法1: 使用psutil查找并终止进程
         killed_any = False
-        for proc in psutil.process_iter(['pid', 'name']):
-            if proc.info['name'] and 'WeChatAppEx.exe' in proc.info['name']:
+        for proc in psutil.process_iter(["pid", "name"]):
+            if proc.info["name"] and "WeChatAppEx.exe" in proc.info["name"]:
                 proc.kill()  # 终止进程
-                print(f"已杀死微信进程，PID: {proc.info['pid']}")
+                logger.info(f"已杀死微信进程，PID: {proc.info['pid']}")
                 killed_any = True
 
         if not killed_any:
-            print("未找到可杀死的WeChatAppEx.exe进程")
+            logger.info("未找到可杀死的WeChatAppEx.exe进程")
     except psutil.NoSuchProcess:
-        print("微信进程已终止")
+        logger.info("微信进程已终止")
     except psutil.AccessDenied:
-        print("尝试杀死微信进程时访问被拒绝 - 可能需要提升权限")
+        logger.warning("尝试杀死微信进程时访问被拒绝 - 可能需要提升权限")
     except Exception as e:
-        print(f"杀死微信进程时出错: {e}")
+        logger.error(f"杀死微信进程时出错: {e}")
         # 备用方法: 尝试使用taskkill命令
         try:
-            subprocess.run(['taskkill', '/f', '/im', 'WeChatAppEx.exe'],
-                          creationflags=subprocess.CREATE_NO_WINDOW, check=True)
-            print("使用taskkill命令杀死微信进程")
+            subprocess.run(
+                ["taskkill", "/f", "/im", "WeChatAppEx.exe"],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                check=True,
+            )
+            logger.info("使用taskkill命令杀死微信进程")
         except subprocess.CalledProcessError:
-            print("使用taskkill命令杀死微信进程失败")
+            logger.warning("使用taskkill命令杀死微信进程失败")
+
 
 # 读取配置文件
 config = {}
-config_path = resource_path('config.json')
+config_path = resource_path("config.json")
 if os.path.exists(config_path):
-    with open(config_path, 'r', encoding='utf-8') as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         config = json.load(f)
 
 # 确保配置项完整
 config = ensure_config_completeness(config)
 
 # 更新配置版本信息（如果尚未存在）
-if 'version' not in config:
+if "version" not in config:
     import hashlib
     import time
     import os
+
     try:
-        config_version = hashlib.md5((config['token'] + str(os.path.getmtime(config_path))).encode()).hexdigest()
+        config_version = hashlib.md5(
+            (config["token"] + str(os.path.getmtime(config_path))).encode()
+        ).hexdigest()
     except FileNotFoundError:
-        config_version = hashlib.md5((config['token'] + str(time.time())).encode()).hexdigest()
-    config['version'] = config_version
+        config_version = hashlib.md5(
+            (config["token"] + str(time.time())).encode()
+        ).hexdigest()
+    config["version"] = config_version
 
 # 初始化Flask应用
-app = Flask(__name__, template_folder=resource_path('templates'))
+app = Flask(__name__, template_folder=resource_path("templates"))
 app.secret_key = str(uuid4())  # 在生产环境中应该使用更安全的密钥
 
 # 添加全局变量用于缓存
@@ -145,47 +230,59 @@ request_lock = False  # 请求锁，防止并发访问
 last_qr_bytes = None  # 上次生成的二维码字节数据
 last_qr_time = 0  # 上次生成二维码的时间戳
 
+
 def require_auth(f):
     """装饰器：要求用户认证"""
     from functools import wraps
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
         # 检查基础认证状态
-        if 'authenticated' not in session:
-            return redirect(url_for('login'))
+        if "authenticated" not in session:
+            return redirect(url_for("login"))
 
         # 检查配置版本是否匹配（增强安全性）
-        if 'config_version' not in session or session['config_version'] != config.get('version'):
+        if "config_version" not in session or session["config_version"] != config.get(
+            "version"
+        ):
             # 配置已更改，需要重新登录
-            session.pop('authenticated', None)
-            session.pop('config_version', None)
-            return redirect(url_for('login'))
+            session.pop("authenticated", None)
+            session.pop("config_version", None)
+            return redirect(url_for("login"))
 
         return f(*args, **kwargs)
+
     return decorated_function
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        token = request.form.get('token')
-        if token and token == config['token']:
-            session['authenticated'] = True
-            # 存储配置版本信息到session中，用于增强安全性
-            session['config_version'] = config.get('version')
-            return {'success': True}
-        else:
-            return {'success': False}
-    return render_template('login.html')
 
-@app.route('/logout', methods=['POST'])
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        token = request.form.get("token")
+        if token and token == config["token"]:
+            session["authenticated"] = True
+            # 存储配置版本信息到session中，用于增强安全性
+            session["config_version"] = config.get("version")
+            logger.info(f"来自{request.remote_addr}的成功登录请求")
+            return {"success": True}
+        else:
+            logger.info(f"来自{request.remote_addr}的登录请求失败")
+            return {"success": False}
+    logger.info(f"{request.remote_addr}尝试进入登录页面")
+    return render_template("login.html")
+
+
+@app.route("/logout", methods=["POST"])
 def logout():
-    session.pop('authenticated', None)
-    return '', 204
+    session.pop("authenticated", None)
+    return "", 204
+
 
 def find_wechat_window_by_process():
     """
     通过查找Weixin.exe进程来获取微信窗口句柄
     """
+
     def enum_windows_callback(hwnd, windows):
         if not win32gui.IsWindowVisible(hwnd):
             return True
@@ -196,7 +293,7 @@ def find_wechat_window_by_process():
         # 根据进程ID获取进程名称
         try:
             process = psutil.Process(pid)
-            if process.name() and 'Weixin.exe' in process.name():
+            if process.name() and "Weixin.exe" in process.name():
                 windows.append(hwnd)
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             pass
@@ -207,6 +304,7 @@ def find_wechat_window_by_process():
     win32gui.EnumWindows(enum_windows_callback, windows)
 
     return windows[0] if windows else None
+
 
 def qrmai_action():
     """
@@ -222,14 +320,14 @@ def qrmai_action():
     # 直接查找Weixin.exe进程的窗口，而不是通过标题
     wechat_hwnd = find_wechat_window_by_process()
     if not wechat_hwnd:
-        print("未找到Weixin.exe进程的窗口")
+        logger.warning("未找到Weixin.exe进程的窗口")
         # 杀死微信进程并返回错误信息
         kill_wechat_process()
         im = Image.new("L", (100, 100), "#FFFFFF")
         font = ImageFont.load_default(size=23)
         draw = ImageDraw.Draw(im)
         draw.text((0, 0), "Window\nnot found", font=font, fill="#000000")
-        im.save(img_io, format='PNG')
+        im.save(img_io, format="PNG")
         img_io.seek(0)
         return img_io
 
@@ -242,18 +340,25 @@ def qrmai_action():
             # 将窗口置于前台并激活
             win32gui.SetForegroundWindow(wechat_hwnd)
             # 设置窗口为最顶层
-            win32gui.SetWindowPos(wechat_hwnd, win32con.HWND_TOPMOST, 0, 0, 0, 0,
-                                  win32con.SWP_NOMOVE | win32con.SWP_NOSIZE)
+            win32gui.SetWindowPos(
+                wechat_hwnd,
+                win32con.HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                win32con.SWP_NOMOVE | win32con.SWP_NOSIZE,
+            )
             activation_success = True
             break
         except Exception as e:
-            print(f"第 {attempt + 1} 次尝试激活窗口失败: {e}")
+            logger.warning(f"第 {attempt + 1} 次尝试激活窗口失败: {e}")
             time.sleep(1)  # 等待1秒后重试
             pass
 
     # 如果激活窗口失败，给出友好提示
     if not activation_success:
-        print("无法激活微信窗口，将继续执行后续操作")
+        logger.warning("无法激活微信窗口，将继续执行后续操作")
         # 不中断流程，继续执行后续操作
 
     def move_click(x, y):
@@ -263,7 +368,7 @@ def qrmai_action():
         :param y: y坐标
         """
 
-        mouse.position = (x,y)
+        mouse.position = (x, y)
         mouse.click(Button.left, 1)
 
     # 点击第一个位置(p1) - 通常是"舞萌 | 中二服务号生成二维码按钮的位置"
@@ -281,7 +386,7 @@ def qrmai_action():
     # 最小化微信窗口以减少干扰
     # 这里需要处理基于窗口句柄的最小化
     try:
-        time.sleep(0.2) #等待0.2秒再最小化，以免还没有点击到二维码就最小化了
+        time.sleep(0.2)  # 等待0.2秒再最小化，以免还没有点击到二维码就最小化了
         win32gui.ShowWindow(wechat_hwnd, win32con.SW_MINIMIZE)
     except:
         pass
@@ -315,18 +420,26 @@ def qrmai_action():
                 font = ImageFont.load_default(size=23)  # 加载默认字体
                 draw = ImageDraw.Draw(im)  # 创建绘图对象
                 # 绘制错误信息文本
-                draw.text((0, 0), "Unable\nto load\nQRCode\n(Timeout)", font=font, fill="#000000")
-                im.save(img_io, format='PNG')  # 保存图像到字节流
+                draw.text(
+                    (0, 0),
+                    "Unable\nto load\nQRCode\n(Timeout)",
+                    font=font,
+                    fill="#000000",
+                )
+                im.save(img_io, format="PNG")  # 保存图像到字节流
                 img_io.seek(0)  # 将指针移到开始位置
 
                 return img_io  # 返回错误图像
             # 打印重试信息
-            print(f"二维码解码失败 过{config['decode']['time'] / config['decode']['retry_count']}s后重试 ({i+1}/{config['decode']['retry_count']})")
+            logger.info(
+                f"二维码解码失败 过{config['decode']['time'] / config['decode']['retry_count']}s后重试 ({i+1}/{config['decode']['retry_count']})"
+            )
 
     # 使用解码得到的数据生成新的二维码
     qr_img = qrcode.make(decoded_objects[0].data.decode("utf-8"))
 
     import os
+
     # 如果skin.png存在，则将二维码与皮肤合成
     if "skin.png" in os.listdir():
 
@@ -334,7 +447,7 @@ def qrmai_action():
             skin = Image.open(config["custom_skin_path"])
         else:
             skin = Image.open("skin.png")  # 打开皮肤图片
-        qr_img = qr_img.convert('RGBA')  # 转换二维码为RGBA模式
+        qr_img = qr_img.convert("RGBA")  # 转换二维码为RGBA模式
 
         # 获取二维码尺寸
         width, height = qr_img.size
@@ -356,22 +469,29 @@ def qrmai_action():
         # 根据皮肤格式配置确定粘贴位置
         if config["skin_format"] == "new":
             # 新版皮肤格式，二维码居中
-            skin.paste(resized_qr, (106, 638), mask=resized_qr)  # 使用 resize 后的图像作为 mask
+            skin.paste(
+                resized_qr, (106, 638), mask=resized_qr
+            )  # 使用 resize 后的图像作为 mask
         elif config["skin_format"] == "old":
             # 旧版皮肤格式，二维码靠下
-            skin.paste(resized_qr, (106, 1060), mask=resized_qr)  # 使用 resize 后的图像作为 mask
+            skin.paste(
+                resized_qr, (106, 1060), mask=resized_qr
+            )  # 使用 resize 后的图像作为 mask
         else:
-            qrcode_point = (config["custom_skin_qrcode_point"][0], config["custom_skin_qrcode_point"][1])
+            qrcode_point = (
+                config["custom_skin_qrcode_point"][0],
+                config["custom_skin_qrcode_point"][1],
+            )
             skin.paste(resized_qr, qrcode_point, mask=resized_qr)
 
         # 保存合成后的图像到字节流
-        skin.save(img_io, format='PNG')
+        skin.save(img_io, format="PNG")
 
-    #如果没找到skin.png，就判断是不是自定义
+    # 如果没找到skin.png，就判断是不是自定义
     elif config["skin_format"] == "custom":
 
         skin = Image.open(config["custom_skin_path"])  # 打开皮肤图片
-        qr_img = qr_img.convert('RGBA')  # 转换二维码为RGBA模式
+        qr_img = qr_img.convert("RGBA")  # 转换二维码为RGBA模式
 
         # 获取二维码尺寸
         width, height = qr_img.size
@@ -388,13 +508,16 @@ def qrmai_action():
         resized_qr = qr_img.resize((qrcode_size, qrcode_size))
 
         # 获取用户设置的二维码坐标
-        qrcode_point = (config["custom_skin_qrcode_point"][0],config["custom_skin_qrcode_point"][1])
+        qrcode_point = (
+            config["custom_skin_qrcode_point"][0],
+            config["custom_skin_qrcode_point"][1],
+        )
         skin.paste(resized_qr, qrcode_point, mask=resized_qr)
 
-        skin.save(img_io, format='PNG')
+        skin.save(img_io, format="PNG")
     else:
         # 如果没有皮肤文件，则直接保存原始二维码
-        qr_img.save(img_io, format='PNG')
+        qr_img.save(img_io, format="PNG")
 
     # 将字节流指针移到开始位置
     img_io.seek(0)
@@ -405,6 +528,7 @@ def qrmai_action():
     # 返回包含二维码图像的字节流
     return img_io
 
+
 # 定义路由 /qrmai
 @app.route(f'{config["qr_route"]}')
 def qrmai():
@@ -413,8 +537,8 @@ def qrmai():
     包含身份验证、缓存机制和并发控制
     """
     # 验证token，如果与配置不符则返回403错误
-    if request.args.get('token') != config['token']:
-        return Response('403 Forbidden', status=403)
+    if request.args.get("token") != config["token"]:
+        return Response("403 Forbidden", status=403)
 
     # 引入全局变量
     global request_lock, last_qr_bytes, last_qr_time
@@ -423,17 +547,17 @@ def qrmai():
     current_time = time.time()
 
     # 获取缓存持续时间，默认60秒
-    cache_duration = config.get('cache_duration', 60)
+    cache_duration = config.get("cache_duration", 60)
 
     # 如果有正在进行的请求，等待直到请求完成
     while request_lock:
         time.sleep(0.5)
-        print("等待请求完成...")
+        logger.info("等待请求完成...")
 
     # 检查缓存是否有效（存在且未过期）
     if last_qr_bytes and (current_time - last_qr_time) < cache_duration:
         # 返回缓存的二维码图像
-        return Response(BytesIO(last_qr_bytes), mimetype='image/png')
+        return Response(BytesIO(last_qr_bytes), mimetype="image/png")
 
     # 设置请求锁，防止并发访问
     request_lock = True
@@ -447,26 +571,29 @@ def qrmai():
         last_qr_time = current_time
 
         # 返回新生成的二维码图像
-        return Response(BytesIO(last_qr_bytes), mimetype='image/png')
+        return Response(BytesIO(last_qr_bytes), mimetype="image/png")
     finally:
         # 释放请求锁
         request_lock = False
 
-@app.route('/settings', methods=['GET', 'POST'])
+
+@app.route("/settings", methods=["GET", "POST"])
 @require_auth
 def settings():
-    if request.method == 'POST':
+    if request.method == "POST":
         # 读取POST参数并更新config
         token_updated = False
-        old_token = config['token']
+        old_token = config["token"]
 
         # 处理所有表单字段，包括布尔值字段
         # 首先处理布尔值字段，确保未选中的开关也能正确处理
-        boolean_fields = ['standalone_mode']
+        boolean_fields = ["standalone_mode"]
         for field in boolean_fields:
             if field in config:
                 # 检查表单中是否包含该字段
-                config[field] = field in request.form and request.form[field].lower() in ('true', '1', 'yes', 'on')
+                config[field] = field in request.form and request.form[
+                    field
+                ].lower() in ("true", "1", "yes", "on")
 
         # 处理其他字段
         for key, value in request.form.items():
@@ -477,17 +604,19 @@ def settings():
             if key in config:
                 # 尝试将字符串转换为对应类型（int/float/list）
                 if isinstance(config[key], bool):
-                    config[key] = value.lower() in ('true', '1', 'yes', 'on')
+                    config[key] = value.lower() in ("true", "1", "yes", "on")
                 elif isinstance(config[key], int):
                     config[key] = int(value)
                 elif isinstance(config[key], float):
                     config[key] = float(value)
-                elif isinstance(config[key], list) and ',' in value:
-                    config[key] = [int(v) if v.isdigit() else v for v in value.split(',')]
+                elif isinstance(config[key], list) and "," in value:
+                    config[key] = [
+                        int(v) if v.isdigit() else v for v in value.split(",")
+                    ]
                 else:
                     config[key] = value
                 # 检查是否更新了token
-                if key == 'token' and value != old_token:
+                if key == "token" and value != old_token:
                     token_updated = True
             elif key == "qr_route":  # 处理新的配置项
                 config[key] = value
@@ -495,25 +624,31 @@ def settings():
                 # 注意：在当前请求中无法动态修改路由，需要重启服务
 
         # 保存更新后的config到文件
-        with open('config.json', 'w', encoding='utf-8') as f:
+        with open("config.json", "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=4)
         # 如果token被更新，需要更新配置版本信息
         if token_updated:
             import hashlib
             import time
             import os
-            try:
-                config_version = hashlib.md5((config['token'] + str(os.path.getmtime(config_path))).encode()).hexdigest()
-            except FileNotFoundError:
-                config_version = hashlib.md5((config['token'] + str(time.time())).encode()).hexdigest()
-            config['version'] = config_version
-            # 更新session中的配置版本信息
-            session['config_version'] = config_version
-        return '配置已更新', 200
-    # GET请求时返回设置页面
-    return render_template('settings.html', config=config)
 
-@app.route('/check_update', methods=['POST'])
+            try:
+                config_version = hashlib.md5(
+                    (config["token"] + str(os.path.getmtime(config_path))).encode()
+                ).hexdigest()
+            except FileNotFoundError:
+                config_version = hashlib.md5(
+                    (config["token"] + str(time.time())).encode()
+                ).hexdigest()
+            config["version"] = config_version
+            # 更新session中的配置版本信息
+            session["config_version"] = config_version
+        return "配置已更新", 200
+    # GET请求时返回设置页面
+    return render_template("settings.html", config=config)
+
+
+@app.route("/check_update", methods=["POST"])
 @require_auth
 def check_update():
     """检查更新的路由"""
@@ -525,25 +660,22 @@ def check_update():
         has_update, latest_release = updater.is_new_version_available()
 
         if has_update and latest_release:
-            return jsonify({
-                'has_update': True,
-                'version': latest_release['version'],
-                'name': latest_release['name'],
-                'published_at': latest_release['published_at'],
-                'body': latest_release['body']
-            })
+            return jsonify(
+                {
+                    "has_update": True,
+                    "version": latest_release["version"],
+                    "name": latest_release["name"],
+                    "published_at": latest_release["published_at"],
+                    "body": latest_release["body"],
+                }
+            )
         else:
-            return jsonify({
-                'has_update': False,
-                'message': '当前已是最新版本'
-            })
+            return jsonify({"has_update": False, "message": "当前已是最新版本"})
     except Exception as e:
-        return jsonify({
-            'error': True,
-            'message': f'检查更新时出错: {str(e)}'
-        }), 500
+        return jsonify({"error": True, "message": f"检查更新时出错: {str(e)}"}), 500
 
-@app.route('/manual_update', methods=['POST'])
+
+@app.route("/manual_update", methods=["POST"])
 @require_auth
 def manual_update():
     """手动更新的路由"""
@@ -560,79 +692,85 @@ def manual_update():
 
             if success:
                 # 更新成功，返回200状态码
-                return '', 200
+                return "", 200
             else:
                 # 更新失败
-                return jsonify({
-                    'error': True,
-                    'message': '更新失败'
-                }), 500
+                return jsonify({"error": True, "message": "更新失败"}), 500
         else:
             # 无更新可用，返回204状态码
-            return '', 204
+            return "", 204
     except Exception as e:
-        return jsonify({
-            'error': True,
-            'message': f'手动更新时出错: {str(e)}'
-        }), 500
+        return jsonify({"error": True, "message": f"手动更新时出错: {str(e)}"}), 500
 
 
 # 读取配置文件
 config = {}
-config_path = resource_path('config.json')
+config_path = resource_path("config.json")
 if os.path.exists(config_path):
-    with open(config_path, 'r', encoding='utf-8') as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         config = json.load(f)
 
 # 确保配置项完整
 config = ensure_config_completeness(config)
 
 # 更新配置版本信息（如果尚未存在）
-if 'version' not in config:
+if "version" not in config:
     import hashlib
     import time
     import os
+
     try:
-        config_version = hashlib.md5((config['token'] + str(os.path.getmtime(config_path))).encode()).hexdigest()
+        config_version = hashlib.md5(
+            (config["token"] + str(os.path.getmtime(config_path))).encode()
+        ).hexdigest()
     except FileNotFoundError:
-        config_version = hashlib.md5((config['token'] + str(time.time())).encode()).hexdigest()
-    config['version'] = config_version
+        config_version = hashlib.md5(
+            (config["token"] + str(time.time())).encode()
+        ).hexdigest()
+    config["version"] = config_version
 
 # 程序入口点
-if __name__ == '__main__':
+if __name__ == "__main__":
     import hashlib
     import time
 
     # 读取配置文件
     if os.path.exists(config_path):
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             config_from_file = json.load(f)
         config = ensure_config_completeness(config_from_file)
         # 保存补全后的配置
-        with open(config_path, 'w', encoding='utf-8') as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=4)
         # 添加配置版本标识，用于增强认证安全性
         try:
-            config_version = hashlib.md5((config['token'] + str(os.path.getmtime(config_path))).encode()).hexdigest()
+            config_version = hashlib.md5(
+                (config["token"] + str(os.path.getmtime(config_path))).encode()
+            ).hexdigest()
         except FileNotFoundError:
-            config_version = hashlib.md5((config['token'] + str(time.time())).encode()).hexdigest()
-        config['version'] = config_version
+            config_version = hashlib.md5(
+                (config["token"] + str(time.time())).encode()
+            ).hexdigest()
+        config["version"] = config_version
     else:
         # 如果config.json不存在，则创建默认配置文件
         config = get_default_config()
         # 保存默认配置到文件
-        with open(config_path, 'w', encoding='utf-8') as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=4)
         # 添加配置版本标识
-        config_version = hashlib.md5((config['token'] + str(time.time())).encode()).hexdigest()
-        config['version'] = config_version
+        config_version = hashlib.md5(
+            (config["token"] + str(time.time())).encode()
+        ).hexdigest()
+        config["version"] = config_version
 
     # 根据配置动态注册二维码路由
-    qr_route = config.get('qr_route', '/qrmai')
-    app.add_url_rule(qr_route, 'qrmai', qrmai)
+    qr_route = config.get("qr_route", "/qrmai")
+    app.add_url_rule(qr_route, "qrmai", qrmai)
 
     # 启动Flask应用，使用配置中的主机和端口
     from webbrowser import open as open_webbrowser
+
     if config["host"] != "0.0.0.0":
         open_webbrowser(f'http://{config["host"]}:{config["port"]}/login')
     else:
