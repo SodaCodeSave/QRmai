@@ -1,4 +1,4 @@
-<div style="text-align: center;">
+<div align="center">
    <img src="./icon.png">
    <h1>QRmai</h1>
    <span>动态截取舞萌DX、中二节奏二维码并返还给客户端</span>
