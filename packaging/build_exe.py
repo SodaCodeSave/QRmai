@@ -46,7 +46,6 @@ def build_executable():
         f"--distpath={project_root / 'dist'}",    # Output directory
         f"--workpath={project_root / 'build'}",   # Build directory
         f"--specpath={project_root}",             # Spec file directory
-        f"--runtime-hook={project_root / 'packaging' / 'runtime_hook.py'}",  # Pre-load pyzbar DLLs
         "--strip",                        # Strip symbols to reduce size
     ]
 
@@ -93,10 +92,10 @@ def build_executable():
         
         cmd.extend(["--add-data", f"{config_file}{os.pathsep}."])
 
-    # Add DLLs as data (not binaries) to avoid strip corruption; runtime_hook.py pre-loads them with WinDLL
+    # Add DLL files to data files if they exist
     if dll_files_exist:
-        cmd.extend(["--add-data", f"{libiconv_dll}{os.pathsep}.\\pyzbar"])
-        cmd.extend(["--add-data", f"{libzbar_dll}{os.pathsep}.\\pyzbar"])
+        cmd.extend(["--add-data", f"{libiconv_dll}{os.pathsep}."])
+        cmd.extend(["--add-data", f"{libzbar_dll}{os.pathsep}."])
     else:
         print("Warning: libiconv.dll and libzbar-64.dll not found, the packaged program will not work properly, please place them and rebuild")
         print("Please place these DLL files in the packaging directory to ensure the program works properly")
