@@ -102,6 +102,19 @@ jobs:
           echo "Error: Rename failed"
           exit 1
         }
+
+        # 创建包含exe和DLL文件的ZIP包
+        $zipName = "QRmai-$version-win.zip"
+        $zipPath = "dist/$zipName"
+        $tempZipDir = "dist/zip_temp"
+        if (Test-Path $tempZipDir) { Remove-Item -Recurse -Force $tempZipDir }
+        New-Item -ItemType Directory -Path $tempZipDir | Out-Null
+        Copy-Item "dist/QRmai.exe" "$tempZipDir/" -Force
+        Copy-Item "packaging/libiconv.dll" "$tempZipDir/" -Force
+        Copy-Item "packaging/libzbar-64.dll" "$tempZipDir/" -Force
+        Compress-Archive -Path "$tempZipDir/*" -DestinationPath $zipPath -Force
+        Remove-Item -Recurse -Force $tempZipDir
+        echo "Created ZIP package: $zipName"
       shell: pwsh
 
     - name: Get commit messages since last release
@@ -133,7 +146,7 @@ jobs:
 
           ${{ contains(env.VERSION, '-alpha') && '⚠️ 这是一个Alpha测试版本 未经过测试 不建议使用' || contains(env.VERSION, '-beta') && '⚠️ 这是一个Beta测试版本 已经经过测试 但仍不建议使用' || '' }}
         files: |
-          dist/QRmai-${{ env.VERSION }}-win.exe
+          dist/QRmai-${{ env.VERSION }}-win.zip
         draft: false
         prerelease: ${{ contains(env.VERSION, '-alpha') || contains(env.VERSION, '-beta') }}
       env:

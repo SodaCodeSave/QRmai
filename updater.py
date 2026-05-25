@@ -91,10 +91,10 @@ def get_current_version():
         return "unknown"
 
 
-def find_exe_asset(assets):
-    """在assets中查找exe文件"""
+def find_zip_asset(assets):
+    """在assets中查找zip文件"""
     for asset in assets:
-        if asset.get("name", "").endswith(".exe"):
+        if asset.get("name", "").endswith(".zip"):
             return asset.get("browser_download_url")
     return None
 
@@ -112,16 +112,16 @@ def get_latest_release():
                 print("错误: GitHub API返回的数据缺少'tag_name'字段")
                 return None
 
-            # 从assets中查找exe文件下载链接
+            # 从assets中查找zip文件下载链接
             assets = release_info.get("assets", [])
-            exe_download_url = find_exe_asset(assets)
+            zip_download_url = find_zip_asset(assets)
 
-            # 如果没找到exe文件，仍然返回信息，但download_url为None
+            # 如果没找到zip文件，仍然返回信息，但download_url为None
             return {
                 "version": release_info["tag_name"],
                 "name": release_info.get("name", release_info["tag_name"]),
                 "published_at": release_info.get("published_at", ""),
-                "download_url": exe_download_url,
+                "download_url": zip_download_url,
                 "assets": assets,  # 保留assets信息以供调试
                 "body": release_info.get("body", ""),
             }
@@ -144,15 +144,15 @@ def get_latest_release():
                     print("错误: GitHub API返回的数据缺少'tag_name'字段")
                     return None
 
-                # 从assets中查找exe文件下载链接
+                # 从assets中查找zip文件下载链接
                 assets = release_info.get("assets", [])
-                exe_download_url = find_exe_asset(assets)
+                zip_download_url = find_zip_asset(assets)
 
                 return {
                     "version": release_info["tag_name"],
                     "name": release_info.get("name", release_info["tag_name"]),
                     "published_at": release_info.get("published_at", ""),
-                    "download_url": exe_download_url,
+                    "download_url": zip_download_url,
                     "assets": assets,  # 保留assets信息以供调试
                     "body": release_info.get("body", ""),
                 }
@@ -277,7 +277,7 @@ def download_with_mirror(download_url, session, timeout=30, verify=True):
 
 
 def download_and_extract_update(download_url, temp_dir="temp_update"):
-    """下载并处理更新文件（主要支持exe格式）"""
+    """下载并处理更新文件（zip格式）"""
     try:
         # 创建临时目录
         if os.path.exists(temp_dir):
@@ -308,16 +308,25 @@ def download_and_extract_update(download_url, temp_dir="temp_update"):
         if not filename:
             filename = download_url.split("/")[-1]
 
-        file_path = os.path.join(temp_dir, filename)
+        zip_path = os.path.join(temp_dir, filename)
 
-        # 流式写入文件以处理大文件
-        with open(file_path, "wb") as f:
+        # 流式写入zip文件
+        with open(zip_path, "wb") as f:
             for chunk in response.iter_content(chunk_size=8192):
-                if chunk:  # 过滤掉保持连接的空块
+                if chunk:
                     f.write(chunk)
 
-        print(f"更新文件已保存到: {file_path}")
-        return file_path
+        print(f"更新包已保存到: {zip_path}")
+
+        # 解压zip文件到临时目录
+        print("正在解压更新包...")
+        extract_dir = os.path.join(temp_dir, "extracted")
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(extract_dir)
+
+        print(f"更新包已解压到: {extract_dir}")
+        print(f"解压内容: {os.listdir(extract_dir)}")
+        return extract_dir
     except Exception as e:
         print(f"下载或处理更新时出错: {str(e)}")
         import traceback
@@ -326,47 +335,31 @@ def download_and_extract_update(download_url, temp_dir="temp_update"):
         return None
 
 
-def apply_update(update_path):
-    """应用更新文件（主要支持exe格式）"""
+def apply_update(update_dir):
+    """应用更新（从zip提取的目录）"""
     try:
-        # 检查是否为exe文件
-        if os.path.isfile(update_path) and update_path.endswith(".exe"):
-            # 处理exe文件 - 直接替换当前exe程序
-            print("正在替换当前exe程序...")
-            print(f"更新文件路径: {update_path}")
+        # 检查是否为有效目录
+        if not os.path.isdir(update_dir):
+            print(f"更新路径不是有效目录: {update_dir}")
+            return False
 
-            # 在Windows上直接替换当前exe文件
-            if sys.platform.startswith("win"):
-                # 获取程序所在目录和主程序路径
-                # 如果是PyInstaller打包的exe，sys.executable就是exe本身
-                # 如果是Python脚本运行，需要获取main.py所在的目录
-                if getattr(sys, "frozen", False):
-                    # PyInstaller打包的情况
-                    current_exe = sys.executable
+        # 在Windows上执行更新
+        if sys.platform.startswith("win"):
+            # 获取程序所在目录和主程序路径
+            if getattr(sys, "frozen", False):
+                app_dir = os.path.dirname(sys.executable)
+            else:
+                if hasattr(sys, "_MEIPASS"):
+                    app_dir = os.path.dirname(sys.executable)
                 else:
-                    # Python脚本运行的情况，尝试获取main.py的路径
-                    if hasattr(sys, "_MEIPASS"):
-                        # 在PyInstaller临时目录中
-                        app_dir = os.path.dirname(sys.executable)
-                    else:
-                        # 正常的Python脚本，从argv获取main.py的位置
-                        script_path = sys.argv[0] if sys.argv else "main.py"
-                        script_path = os.path.abspath(script_path)
-                        app_dir = os.path.dirname(script_path)
-                    current_exe = os.path.join(app_dir, "main.exe")  # 期望的exe名称
+                    script_path = sys.argv[0] if sys.argv else "main.py"
+                    script_path = os.path.abspath(script_path)
+                    app_dir = os.path.dirname(script_path)
 
-                print(f"当前程序路径: {current_exe}")
+            print(f"应用目录: {app_dir}")
 
-                # 计算路径
-                new_exe_path = os.path.abspath(update_path)
-                app_dir = (
-                    os.path.dirname(new_exe_path)
-                    if os.path.dirname(new_exe_path)
-                    else os.getcwd()
-                )
-
-                # 创建替换脚本，在单独进程中执行替换操作
-                script_content = f"""@echo off
+            # 创建替换脚本，在单独进程中执行替换操作
+            script_content = f"""@echo off
 chcp 65001 >nul 2>&1
 cd /d "{app_dir}"
 echo 正在等待当前程序关闭...
@@ -379,42 +372,42 @@ if %errorlevel% equ 0 (
     taskkill /f /im "python.exe" >nul 2>&1
 )
 timeout /t 2 /nobreak >nul
-echo 正在替换程序文件...
+echo 正在复制更新文件...
+copy /y "{update_dir}\\libiconv.dll" "{app_dir}\\" >nul 2>&1
+copy /y "{update_dir}\\libzbar-64.dll" "{app_dir}\\" >nul 2>&1
 if exist "main.exe" (
     del /f /q "main.exe" >nul 2>&1
 )
-move /y "{new_exe_path}" "{app_dir}\\main.exe" >nul 2>&1
+copy /y "{update_dir}\\QRmai.exe" "{app_dir}\\main.exe" >nul 2>&1
 if %errorlevel% equ 0 (
     echo 程序更新成功，正在启动...
+    rmdir /s /q "{update_dir}" >nul 2>&1
     del "%~f0"
     start /wait "" "{app_dir}\\main.exe"
 ) else (
     echo 程序更新失败，请手动替换文件。
     pause
+    rmdir /s /q "{update_dir}" >nul 2>&1
     del "%~f0"
 )
 """
 
-                # 将替换脚本保存到临时文件
-                script_name = f"update_{int(time.time())}.bat"
-                script_path = os.path.join(app_dir, script_name)
-                with open(script_path, "w", encoding="utf-8") as f:
-                    f.write(script_content)
+            # 将替换脚本保存到临时文件
+            script_name = f"update_{int(time.time())}.bat"
+            script_path = os.path.join(app_dir, script_name)
+            with open(script_path, "w", encoding="utf-8") as f:
+                f.write(script_content)
 
-                # 使用 cmd /c 在正确目录执行批处理命令
-                print("正在启动更新程序...")
-                subprocess.Popen(
-                    ["cmd", "/c", "start", "", "/wait", "cmd", "/c", script_path],
-                    shell=False,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
-                )
-                print("更新脚本已启动，应用程序将关闭并进行自我替换。")
-                return True
-            else:
-                print("当前平台不支持exe更新文件")
-                return False
+            print("正在启动更新程序...")
+            subprocess.Popen(
+                ["cmd", "/c", "start", "", "/wait", "cmd", "/c", script_path],
+                shell=False,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            print("更新脚本已启动，应用程序将关闭并进行自我替换。")
+            return True
         else:
-            print(f"更新文件不是exe格式: {update_path}")
+            print("当前平台不支持自动更新")
             return False
     except Exception as e:
         print(f"应用更新时出错: {str(e)}")
@@ -464,13 +457,10 @@ def check_and_update():
 
         # 如果有下载链接，则尝试下载更新
         if latest_release["download_url"]:
-            print(f"找到exe下载链接: {latest_release['download_url']}")
-            update_path = download_and_extract_update(latest_release["download_url"])
-            if update_path:
-                # 应用更新
-                if apply_update(update_path):
-                    # exe文件已经自我替换了，不需要额外操作
-                    print("程序已成功自我替换，应用程序将重新启动。")
+            update_dir = download_and_extract_update(latest_release["download_url"])
+            if update_dir:
+                if apply_update(update_dir):
+                    print("程序已成功更新，应用程序将重新启动。")
                     return True
                 else:
                     print("应用更新失败")
@@ -479,7 +469,8 @@ def check_and_update():
                 print("下载或处理更新失败")
                 return False
         else:
-            print("未找到exe下载链接")
+            print("未找到zip下载链接")
+            return False
             return False
     else:
         print("当前已是最新版本")
