@@ -36,17 +36,19 @@ def build_executable():
 
     # Build PyInstaller command
     cmd = [
-        sys.executable, "-m", "PyInstaller",
-        "--name=QRmai",                    # Executable name
-        "--console",                       # Keep console window
-        "--onefile",                       # Package as single executable
-        "--clean",                         # Clean temporary files
-        "--noconfirm",                     # No confirmation prompt
-        "--log-level=INFO",               # Set log level
-        f"--distpath={project_root / 'dist'}",    # Output directory
-        f"--workpath={project_root / 'build'}",   # Build directory
-        f"--specpath={project_root}",             # Spec file directory
-        "--strip",                        # Strip symbols to reduce size
+        sys.executable,
+        "-m",
+        "PyInstaller",
+        "--name=QRmai",  # Executable name
+        "--console",  # Keep console window
+        "--onefile",  # Package as single executable
+        "--clean",  # Clean temporary files
+        "--noconfirm",  # No confirmation prompt
+        "--log-level=INFO",  # Set log level
+        f"--distpath={project_root / 'dist'}",  # Output directory
+        f"--workpath={project_root / 'build'}",  # Build directory
+        f"--specpath={project_root}",  # Spec file directory
+        "--strip",  # Strip symbols to reduce size
     ]
 
     # Add icon.png as executable icon if it exists
@@ -61,7 +63,7 @@ def build_executable():
     templates_dir = project_root / "templates"
     if templates_dir.exists():
         cmd.extend(["--add-data", f"{templates_dir}{os.pathsep}templates"])
-    
+
     # Add config.json to data files
     config_file = project_root / "config.json"
     if config_file.exists():
@@ -78,18 +80,16 @@ def build_executable():
             "qr_route": "/qrmai",
             "cache_duration": 60,
             "standalone_mode": False,
-            "decode": {
-                "time": 10,
-                "retry_count": 10
-            },
+            "decode": {"time": 10, "retry_count": 10},
             "skin_format": "new",
-            "dev_mode": False
+            "dev_mode": False,
         }
-        
+
         import json
-        with open(config_file, 'w', encoding='utf-8') as f:
+
+        with open(config_file, "w", encoding="utf-8") as f:
             json.dump(default_config, f, ensure_ascii=False, indent=4)
-        
+
         cmd.extend(["--add-data", f"{config_file}{os.pathsep}."])
 
     # Add DLL files to data files if they exist
@@ -97,10 +97,14 @@ def build_executable():
         cmd.extend(["--add-data", f"{libiconv_dll}{os.pathsep}."])
         cmd.extend(["--add-data", f"{libzbar_dll}{os.pathsep}."])
     else:
-        print("Warning: libiconv.dll and libzbar-64.dll not found, the packaged program will not work properly, please place them and rebuild")
-        print("Please place these DLL files in the packaging directory to ensure the program works properly")
+        print(
+            "Warning: libiconv.dll and libzbar-64.dll not found, the packaged program will not work properly, please place them and rebuild"
+        )
+        print(
+            "Please place these DLL files in the packaging directory to ensure the program works properly"
+        )
         return False
-    
+
     # Add hidden imports
     hidden_imports = [
         "pynput",
@@ -110,7 +114,7 @@ def build_executable():
         "mss",
         "pyzbar",
         "flask",
-        "pywin32"
+        "pywin32",
     ]
 
     for imp in hidden_imports:
@@ -132,7 +136,9 @@ def build_executable():
         print(f"\nPackaging failed: {e}")
         return False
     except FileNotFoundError:
-        print("\nError: PyInstaller not found. Please make sure PyInstaller is installed:")
+        print(
+            "\nError: PyInstaller not found. Please make sure PyInstaller is installed:"
+        )
         print("pip install pyinstaller")
         return False
 
@@ -149,16 +155,18 @@ def optimize_with_upx():
 
     # Check if UPX is available
     try:
-        subprocess.run(["upx", "--version"],
-                      capture_output=True, check=True)
+        subprocess.run(["upx", "--version"], capture_output=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("Note: UPX not installed, skipping extra compression. Installing UPX can further reduce file size.")
+        print(
+            "Note: UPX not installed, skipping extra compression. Installing UPX can further reduce file size."
+        )
         return False
 
     print("Compressing executable with UPX...")
     try:
-        subprocess.run(["upx", "--best", str(exe_file)],
-                      cwd=str(project_root), check=True)
+        subprocess.run(
+            ["upx", "--best", str(exe_file)], cwd=str(project_root), check=True
+        )
         print("UPX compression completed!")
         return True
     except subprocess.CalledProcessError as e:
@@ -225,11 +233,13 @@ def main():
         # Check if stdin is available (important for CI/CD environments)
         if sys.stdin.isatty():
             choice = input("\nDelete build temp files? (y/N): ")
-            if choice.lower() == 'y':
+            if choice.lower() == "y":
                 cleanup()
         else:
             # In non-interactive environments (like CI/CD), automatically clean up
-            print("\nNon-interactive environment detected. Cleaning up temporary files...")
+            print(
+                "\nNon-interactive environment detected. Cleaning up temporary files..."
+            )
             cleanup()
 
         print("\nPackaging script completed!")

@@ -12,7 +12,7 @@ from pathlib import Path
 def get_version_from_file(version_file_path):
     """从文件中读取版本号"""
     try:
-        with open(version_file_path, 'r', encoding='utf-8') as f:
+        with open(version_file_path, "r", encoding="utf-8") as f:
             version = f.read().strip()
         return version
     except FileNotFoundError:
@@ -27,14 +27,14 @@ def main():
     """主函数"""
     project_root = Path(__file__).parent.parent
     version_file = project_root / "version.txt"
-    
+
     version = get_version_from_file(version_file)
     if version:
         print(f"VERSION={version}")
         # 也输出到环境变量文件，以便GitHub Actions使用
-        if 'GITHUB_ENV' in str(Path.cwd()):
+        if "GITHUB_ENV" in str(Path.cwd()):
             # 在GitHub Actions环境中
-            with open('env.txt', 'a') as f:
+            with open("env.txt", "a") as f:
                 f.write(f"VERSION={version}\n")
         return version
     else:

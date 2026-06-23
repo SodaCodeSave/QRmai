@@ -3,27 +3,27 @@ QRmai Linux 平台代码
 hacked-wechat 劫持环境 + Wayland/uinput 鼠标操控
 """
 
-import os
-import sys
 import json
-import time
-import logging
-import threading
+import os
 import queue
-
-import shutil
-import tempfile
-import subprocess
-import urllib.request
-import urllib.error
-import urllib.parse
 import re
-from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import urllib.error
+import urllib.request
 from io import BytesIO
+from pathlib import Path
+from urllib.parse import urljoin
 
 import psutil
+from PIL import Image
+from pyzbar.pyzbar import decode
 
-from .shared import config, logger, apply_skin_to_qr, make_error_image
+from .shared import apply_skin_to_qr, config, logger, make_error_image
 
 # Linux 微信可执行文件路径（可从配置覆盖）
 WECHAT_BIN = config.get("wechat_bin", "/opt/wechat/wechat")
@@ -33,11 +33,11 @@ WECHAT_BIN = config.get("wechat_bin", "/opt/wechat/wechat")
 # Linux 鼠标控制（Wayland 优先 → uinput 回退）
 # =============================================================================
 
+
 def _is_wayland_session():
     """检测当前是否运行在 Wayland 会话下"""
-    return (
-        os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland"
-        or bool(os.environ.get("WAYLAND_DISPLAY"))
+    return os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland" or bool(
+        os.environ.get("WAYLAND_DISPLAY")
     )
 
 
@@ -74,8 +74,8 @@ class LinuxMouse:
     """
 
     def __init__(self):
-        self._wayland_mouse = None   # wayland_automation Mouse 实例
-        self._ui = None              # evdev UInput 实例
+        self._wayland_mouse = None  # wayland_automation Mouse 实例
+        self._ui = None  # evdev UInput 实例
         self._is_wayland = False
         self._last_x = 0
         self._last_y = 0
@@ -87,7 +87,9 @@ class LinuxMouse:
 
                 self._wayland_mouse = WaylandMouse()
                 self._is_wayland = True
-                logger.info("已初始化 Wayland 虚拟指针（zwlr_virtual_pointer_manager_v1）")
+                logger.info(
+                    "已初始化 Wayland 虚拟指针（zwlr_virtual_pointer_manager_v1）"
+                )
                 return
             except ImportError:
                 logger.warning("wayland_automation 未安装，回退到 uinput")
@@ -101,7 +103,8 @@ class LinuxMouse:
 
         # ── uinput 回退路径 ──
         try:
-            from evdev import UInput, ecodes as ev_ecodes
+            from evdev import UInput
+            from evdev import ecodes as ev_ecodes
 
             self._ev_ecodes = ev_ecodes
             self._ui = UInput(
@@ -121,39 +124,12 @@ class LinuxMouse:
         except ImportError:
             logger.error(
                 "evdev 库未安装，无法进行 Linux 鼠标操控。"
-                "请安装 evdev: pip install evdev"
+                "请安装 evdev: uv pip install evdev"
             )
             raise RuntimeError("evdev 库未安装，Linux 鼠标操控不可用")
         except Exception as e:
             logger.error(f"初始化 uinput 失败: {e}")
             raise RuntimeError(f"初始化 uinput 失败: {e}")
-
-    @staticmethod
-    def _get_mouse_position():
-        """获取当前鼠标位置，返回 (x, y)，失败返回 (0, 0)"""
-        if _is_wayland_session():
-            try:
-                from wayland_automation import mouse_position_generator
-                gen = mouse_position_generator(interval=0.05)
-                try:
-                    pos = next(gen)
-                    return pos if pos else (0, 0)
-                finally:
-                    gen.close()
-            except Exception:
-                return 0, 0
-        try:
-            from evdev import InputDevice, list_devices, ecodes as ev_ecodes
-
-            mice = [InputDevice(path) for path in list_devices()]
-            for dev in mice:
-                caps = dev.capabilities()
-                if ev_ecodes.EV_REL in caps and ev_ecodes.BTN_LEFT in caps.get(ev_ecodes.EV_KEY, []):
-                    dev.close()
-                    break
-            return 0, 0
-        except Exception:
-            return 0, 0
 
     def move_to(self, x: int, y: int):
         """将鼠标移动到屏幕绝对坐标"""
@@ -215,7 +191,7 @@ class LinuxMouse:
         """关闭鼠标设备"""
         if self._wayland_mouse:
             try:
-                if hasattr(self._wayland_mouse, 'sock') and self._wayland_mouse.sock:
+                if hasattr(self._wayland_mouse, "sock") and self._wayland_mouse.sock:
                     self._wayland_mouse.sock.close()
             except Exception:
                 pass
@@ -241,6 +217,7 @@ def _get_linux_mouse():
 # Linux 进程管理
 # =============================================================================
 
+
 def linux_kill_wechat_process():
     """杀死 Linux 下的微信进程（不包括 WeChatEx 内置浏览器进程）"""
     killed_any = False
@@ -262,14 +239,20 @@ def linux_kill_wechat_process():
 # hacked-wechat 核心逻辑
 # =============================================================================
 
+
 def _setup_fake_xdg_open(fake_bin_dir: Path, fifo_path: Path):
     """在工作目录内动态创建伪装的 xdg-open 脚本，拦截 HTTP(S) 链接写入 FIFO"""
-    fake_bin_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        fake_bin_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        logger.error(f"无法创建伪装 xdg-open 目录 {fake_bin_dir}: {e}")
+        raise RuntimeError(f"无法创建伪装目录: {e}") from e
+
     xdg_open_path = fake_bin_dir / "xdg-open"
 
     script_content = f"""#!/bin/bash
 URL="$1"
-if [[ "$URL" =~ ^https?:// ]]; then
+if [[ "$URL" =~ ^https?://wq\\.wahlap\\.net/qrcode/req/MAID[0-9A-Fa-f]+\\.html ]]; then
     echo "$URL" > "{fifo_path}"
     exit 0
 else
@@ -277,8 +260,18 @@ else
     exec /usr/bin/xdg-open "$@"
 fi
 """
-    xdg_open_path.write_text(script_content, encoding="utf-8")
-    xdg_open_path.chmod(0o755)
+    try:
+        xdg_open_path.write_text(script_content, encoding="utf-8")
+    except OSError as e:
+        logger.error(f"无法写入伪装 xdg-open 脚本 {xdg_open_path}: {e}")
+        raise RuntimeError(f"无法写入 xdg-open 脚本: {e}") from e
+
+    try:
+        xdg_open_path.chmod(0o755)
+    except OSError as e:
+        logger.error(f"无法设置 xdg-open 可执行权限 {xdg_open_path}: {e}")
+        raise RuntimeError(f"无法设置 xdg-open 权限: {e}") from e
+
     logger.info(f"已创建伪装的 xdg-open: {xdg_open_path}")
 
 
@@ -286,26 +279,25 @@ fi
 # URL 获取与二维码解码
 # =============================================================================
 
+
 def _fetch_url_and_decode_qr(url: str) -> str:
     """
     访问微信打开的链接，解析 HTML，下载 MAID 开头的二维码图像，
     使用 pyzbar 解码后返回二维码数据字符串。
     """
-    from urllib.parse import urljoin
-    from pyzbar.pyzbar import decode
-    from PIL import Image
+    http_headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Linux; Android 10; K) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Mobile Safari/537.36"
+        )
+    }
 
     logger.info(f"[Linux] 正在请求页面: {url[:80]}...")
 
     req = urllib.request.Request(
         url,
-        headers={
-            "User-Agent": (
-                "Mozilla/5.0 (Linux; Android 10; K) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Mobile Safari/537.36"
-            )
-        },
+        headers=http_headers,
     )
 
     try:
@@ -334,13 +326,7 @@ def _fetch_url_and_decode_qr(url: str) -> str:
     # 下载二维码图片
     img_req = urllib.request.Request(
         img_url,
-        headers={
-            "User-Agent": (
-                "Mozilla/5.0 (Linux; Android 10; K) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Mobile Safari/537.36"
-            )
-        },
+        headers=http_headers,
     )
 
     try:
@@ -499,12 +485,12 @@ def _setup_hacked_environment():
 
         _setup_fake_xdg_open(_hacked_fake_bin_dir, _hacked_fifo_path)
 
-    def _persistent_listener():
+    def _persistent_listener(fifo_path):
         """持续从 FIFO 读取 URL，放入队列供多次请求消费"""
         logger.info("[Linux] 持久链接监听线程已启动")
-        while not _hacked_stop_event.is_set() and _hacked_fifo_path.exists():
+        while not _hacked_stop_event.is_set() and fifo_path.exists():
             try:
-                with open(_hacked_fifo_path, "r", encoding="utf-8") as fifo:
+                with open(fifo_path, "r", encoding="utf-8") as fifo:
                     for line in fifo:
                         if _hacked_stop_event.is_set():
                             break
@@ -516,8 +502,13 @@ def _setup_hacked_environment():
                 break
         logger.info("[Linux] 持久链接监听线程已退出")
 
-    listener = threading.Thread(target=_persistent_listener, daemon=True)
-    listener.start()
+    if _hacked_fifo_path is not None:
+        listener = threading.Thread(
+            target=_persistent_listener, args=(_hacked_fifo_path,), daemon=True
+        )
+        listener.start()
+    else:
+        logger.error("[Linux] FIFO 路径为空，监听线程无法启动")
 
 
 def _find_existing_wechat():
@@ -571,9 +562,7 @@ def _ensure_wechat_running():
     existing = _find_existing_wechat()
 
     if existing:
-        logger.warning(
-            f"检测到已有微信进程运行中 (PID: {existing.info['pid']})"
-        )
+        logger.warning(f"检测到已有微信进程运行中 (PID: {existing.info['pid']})")
         print("")
         print("=" * 55)
         print("  ⚠️  检测到微信已在运行")
@@ -598,8 +587,7 @@ def _ensure_wechat_running():
             time.sleep(1)
         else:
             logger.warning(
-                "请确保当前微信进程在 QRmai 劫持环境下启动，"
-                "否则二维码获取可能失败。"
+                "请确保当前微信进程在 QRmai 劫持环境下启动，否则二维码获取可能失败。"
             )
             return
 
@@ -686,6 +674,7 @@ def linux_shutdown():
 # Linux 版 qrmai_action
 # =============================================================================
 
+
 def linux_qrmai_action():
     """
     Linux 版二维码获取：
@@ -746,11 +735,14 @@ def linux_qrmai_action():
     # 微信对点击不敏感，若半秒内未获取到链接则补点一次
     url = None
     for attempt in range(2):
-        logger.info(f"[Linux] 点击 p2 ({config['p2']}) 打开链接"
-                     + (f" (第{attempt + 1}次)" if attempt > 0 else ""))
-        mouse.move_click(config["p2"][0], config["p2"][1], delay=0.5)
+        logger.info(
+            f"[Linux] 点击 p2 ({config['p2']}) 打开链接"
+            + (f" (第{attempt + 1}次)" if attempt > 0 else "")
+        )
+        mouse.move_click(config["p2"][0], config["p2"][1], delay=0)
+        mouse.move_click(config["p2"][0], config["p2"][1], delay=0)
         try:
-            url = _url_queue.get(timeout=0.5 if attempt == 0 else timeout)
+            url = _url_queue.get(timeout=1 if attempt == 0 else timeout)
             break
         except queue.Empty:
             if attempt == 0:
@@ -785,6 +777,7 @@ qrmai_action = linux_qrmai_action
 # Linux 屏幕截图（供 OpenCV 视觉识别使用）
 # =============================================================================
 
+
 def linux_capture_screen() -> "np.ndarray":
     """
     Linux 全屏截图，返回 BGR 格式的 numpy 数组（OpenCV 原生格式）。
@@ -811,8 +804,8 @@ def _capture_screen_grim() -> "np.ndarray":
     Returns:
         BGR 图像 (H, W, 3) uint8
     """
-    import numpy as np
     import cv2
+    import numpy as np
 
     tmp_path = None
     try:
@@ -859,8 +852,8 @@ def _capture_screen_mss(monitor: int = 1) -> "np.ndarray":
     Returns:
         BGR 图像 (H, W, 3) uint8
     """
-    import numpy as np
     import cv2
+    import numpy as np
     from mss import mss
 
     with mss() as sct:
@@ -874,6 +867,7 @@ def _capture_screen_mss(monitor: int = 1) -> "np.ndarray":
 # =============================================================================
 # 初始化辅助（供 main.py 调用）
 # =============================================================================
+
 
 def linux_setup():
     """Linux 启动时的初始化：建立劫持环境 + 启动微信

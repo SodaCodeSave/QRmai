@@ -7,7 +7,6 @@ import os
 import json
 import time
 import logging
-import hashlib
 from io import BytesIO
 
 # =============================================================================
@@ -101,15 +100,19 @@ def get_default_config():
         "host": "0.0.0.0",
         "port": 5000,
         "qr_route": "/qrmai",
-        "cache_duration": 60,
         "standalone_mode": False,
         "decode": {"time": 10, "retry_count": 10},
         "skin_format": "new",
-        "custom_skin_path": "./skin.png",
+        "skin_mode": "random",          # "random" 随机 / "fixed" 固定
+        "skin_index": 0,                 # 固定模式下使用的皮肤序号（0-based）
+        "skin_images": [],               # 已上传的皮肤文件名列表，如 ["skin_1.png", "skin_2.png"]
+        "custom_skin_path": "./skin.png",  # 向后兼容旧版
         "custom_skin_qrcode_size": 576,
         "custom_skin_qrcode_point": [106, 638],
         "dev_mode": False,
         # OpenCV 视觉识别配置
+        "p1_image": "",                  # 用户上传的 P1 图片路径（相对于 img/）
+        "p2_image": "",                  # 用户上传的 P2 图片路径
         "auto_detect_p1p2": False,
         "template_threshold": 0.8,
         # Linux 专用配置
@@ -140,24 +143,97 @@ if os.path.exists(config_path):
 
 config = ensure_config_completeness(config)
 
-if "version" not in config:
-    try:
-        config_version = hashlib.md5(
-            (config["token"] + str(os.path.getmtime(config_path))).encode()
-        ).hexdigest()
-    except FileNotFoundError:
-        config_version = hashlib.md5(
-            (config["token"] + str(time.time())).encode()
-        ).hexdigest()
-    config["version"] = config_version
-
 
 # =============================================================================
 # 二维码图像生成（Windows/Linux 共用）
 # =============================================================================
+def _make_transparent_resized_qr(qr_img, config):
+    """将 QR 图像的白色区域透明化并缩放到皮肤所需尺寸。"""
+    from PIL import Image
+
+    qr_img = qr_img.convert("RGBA")
+    width, height = qr_img.size
+    for x in range(width):
+        for y in range(height):
+            r, g, b, a = qr_img.getpixel((x, y))
+            if r > 200 and g > 200 and b > 200:
+                qr_img.putpixel((x, y), (255, 255, 255, 0))
+
+    if config["skin_format"] == "custom":
+        size = int(config["custom_skin_qrcode_size"])
+    else:
+        size = 576
+    return qr_img.resize((size, size))
+
+
+def _get_paste_point(config):
+    """根据皮肤格式返回二维码粘贴坐标 (x, y)。"""
+    fmt = config["skin_format"]
+    if fmt == "new":
+        return (106, 638)
+    elif fmt == "old":
+        return (106, 1060)
+    else:
+        return tuple(config["custom_skin_qrcode_point"])
+
+
+def _resolve_skin_path():
+    """
+    根据 skin_mode / skin_index / skin_images 配置解析当前应使用的皮肤文件路径。
+
+    优先级：
+      1. 用户上传的皮肤（skin_images 列表）— 根据 skin_mode 选择
+      2. 旧版兼容: 当前目录的 skin.png 或 custom_skin_path
+      3. 无皮肤
+
+    Returns:
+        (skin_path, skin_label) — skin_path 为文件路径或 None; skin_label 为显示名
+    """
+    skin_images = config.get("skin_images", [])
+
+    # ── 用户上传的皮肤 ──
+    if skin_images:
+        skin_mode = config.get("skin_mode", "random")
+
+        if skin_mode == "random":
+            import random
+            chosen = random.choice(skin_images)
+        else:
+            idx = config.get("skin_index", 0)
+            # 确保索引有效
+            if idx < 0 or idx >= len(skin_images):
+                idx = 0
+            chosen = skin_images[idx]
+
+        skin_path = os.path.join(_IMG_DIR, chosen)
+        if os.path.isfile(skin_path):
+            logger.info(f"[Skin] 使用{'随机' if skin_mode == 'random' else '固定'}皮肤: {chosen}")
+            return skin_path, chosen
+        else:
+            logger.warning(f"[Skin] 皮肤文件不存在: {skin_path}")
+
+    # ── 旧版兼容: 当前目录的 skin.png ──
+    skin_fmt = config.get("skin_format", "new")
+    if os.path.isfile("skin.png"):
+        if skin_fmt == "custom":
+            cp = config.get("custom_skin_path", "./skin.png")
+            if os.path.isfile(cp):
+                return cp, os.path.basename(cp)
+        return "skin.png", "skin.png"
+
+    # ── custom 模式但 skin.png 不存在 ──
+    if skin_fmt == "custom":
+        cp = config.get("custom_skin_path", "./skin.png")
+        if os.path.isfile(cp):
+            return cp, os.path.basename(cp)
+
+    return None, None
+
+
 def apply_skin_to_qr(qr_data: str) -> BytesIO:
     """
     将解码得到的二维码数据生成二维码图像，如果有皮肤文件则叠加。
+    支持多皮肤上传（随机 / 固定选择）。
     返回包含 PNG 图像的 BytesIO 对象。
     """
     import qrcode
@@ -166,58 +242,13 @@ def apply_skin_to_qr(qr_data: str) -> BytesIO:
     img_io = BytesIO()
     qr_img = qrcode.make(qr_data)
 
-    import os as _os
+    skin_path, skin_label = _resolve_skin_path()
 
-    if "skin.png" in _os.listdir():
-        if config["skin_format"] == "custom":
-            skin = Image.open(config["custom_skin_path"])
-        else:
-            skin = Image.open("skin.png")
-        qr_img = qr_img.convert("RGBA")
-
-        width, height = qr_img.size
-        for x in range(width):
-            for y in range(height):
-                r, g, b, a = qr_img.getpixel((x, y))
-                if r > 200 and g > 200 and b > 200:
-                    qr_img.putpixel((x, y), (255, 255, 255, 0))
-
-        if config["skin_format"] == "custom":
-            qrcode_size = int(config["custom_skin_qrcode_size"])
-            resized_qr = qr_img.resize((qrcode_size, qrcode_size))
-        else:
-            resized_qr = qr_img.resize((576, 576))
-
-        if config["skin_format"] == "new":
-            skin.paste(resized_qr, (106, 638), mask=resized_qr)
-        elif config["skin_format"] == "old":
-            skin.paste(resized_qr, (106, 1060), mask=resized_qr)
-        else:
-            qrcode_point = (
-                config["custom_skin_qrcode_point"][0],
-                config["custom_skin_qrcode_point"][1],
-            )
-            skin.paste(resized_qr, qrcode_point, mask=resized_qr)
-
-        skin.save(img_io, format="PNG")
-    elif config["skin_format"] == "custom":
-        skin = Image.open(config["custom_skin_path"])
-        qr_img = qr_img.convert("RGBA")
-
-        width, height = qr_img.size
-        for x in range(width):
-            for y in range(height):
-                r, g, b, a = qr_img.getpixel((x, y))
-                if r > 200 and g > 200 and b > 200:
-                    qr_img.putpixel((x, y), (255, 255, 255, 0))
-
-        qrcode_size = int(config["custom_skin_qrcode_size"])
-        resized_qr = qr_img.resize((qrcode_size, qrcode_size))
-        qrcode_point = (
-            config["custom_skin_qrcode_point"][0],
-            config["custom_skin_qrcode_point"][1],
-        )
-        skin.paste(resized_qr, qrcode_point, mask=resized_qr)
+    if skin_path:
+        skin = Image.open(skin_path)
+        resized_qr = _make_transparent_resized_qr(qr_img, config)
+        paste_point = _get_paste_point(config)
+        skin.paste(resized_qr, paste_point, mask=resized_qr)
         skin.save(img_io, format="PNG")
     else:
         qr_img.save(img_io, format="PNG")
@@ -244,13 +275,13 @@ def make_error_image(message: str) -> BytesIO:
 # OpenCV 视觉识别 — P1 / P2 自动定位
 # =============================================================================
 
-_TEMPLATES_DIR = resource_path("templates_img")
+_IMG_DIR = resource_path("img")
 
 
 def _get_template_path(name: str):
     """按优先级查找模板图：用户模板 > 开发者模板，均无则返回 None"""
-    user_path = os.path.join(_TEMPLATES_DIR, f"{name}_user.png")
-    dev_path = os.path.join(_TEMPLATES_DIR, f"{name}.png")
+    user_path = os.path.join(_IMG_DIR, f"{name}_user.png")
+    dev_path = os.path.join(_IMG_DIR, f"{name}.png")
 
     if os.path.isfile(user_path):
         logger.info(f"[OpenCV] 使用用户模板: {user_path}")
@@ -284,6 +315,7 @@ def _image_to_bgr(image):
     else:
         try:
             from PIL import Image
+
             if isinstance(image, Image.Image):
                 arr = np.array(image.convert("RGB"))
                 arr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
@@ -308,26 +340,31 @@ def _match_template_multiscale(
     template_path,
     threshold=0.8,
     scales=(0.6, 0.8, 1.0, 1.2, 1.5),
+    pick_mode="best",
 ):
     """
-    多尺度模板匹配。在不同缩放比例下查找模板，返回最佳匹配的中心坐标。
+    多尺度模板匹配。在不同缩放比例下查找模板，返回匹配的中心坐标。
 
     适应不同屏幕分辨率 / DPI 缩放下的 UI 元素尺寸差异。
+
+    Args:
+        pick_mode: 多匹配选择策略
+            - "best"   默认，选择置信度最高的匹配
+            - "bottom" 选择 Y 坐标最大（最靠下）的匹配，适用于 P2
 
     Returns:
         [x, y] 或 None
     """
     import cv2
+    import numpy as np
 
     template = cv2.imread(template_path, cv2.IMREAD_COLOR)
     if template is None:
         logger.error(f"[OpenCV] 无法读取模板图: {template_path}")
         return None
 
-    best_val = -1.0
-    best_loc = None
-    best_scale = 1.0
-    best_size = template.shape[:2]
+    # 收集所有超过阈值的匹配候选: (center_x, center_y, confidence, scale, h, w)
+    candidates = []
 
     for scale in scales:
         tw = int(template.shape[1] * scale)
@@ -337,32 +374,49 @@ def _match_template_multiscale(
 
         scaled = cv2.resize(template, (tw, th), interpolation=cv2.INTER_LINEAR)
         result = cv2.matchTemplate(screen, scaled, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
-        logger.debug(f"[OpenCV] 缩放 {scale:.1f}x -> max_val={max_val:.3f}")
+        # 找出所有超过阈值的匹配位置
+        locations = np.where(result >= threshold)
+        count = len(locations[0])
 
-        if max_val > best_val:
-            best_val = max_val
-            best_loc = max_loc
-            best_scale = scale
-            best_size = (th, tw)
+        if count > 0:
+            logger.debug(f"[OpenCV] 缩放 {scale:.1f}x -> {count} 个匹配超过阈值")
+            for py, px in zip(*locations):
+                confidence = float(result[py, px])
+                center_x = px + tw // 2
+                center_y = py + th // 2
+                candidates.append((center_x, center_y, confidence, scale, th, tw))
+        else:
+            max_val = float(result.max())
+            logger.debug(
+                f"[OpenCV] 缩放 {scale:.1f}x -> 0 个匹配 (max_val={max_val:.3f})"
+            )
 
-    if best_loc is None or best_val < threshold:
+    if not candidates:
         logger.warning(
-            f"[OpenCV] 模板 {os.path.basename(template_path)} 匹配度不足 "
-            f"(best={best_val:.3f} < {threshold})"
+            f"[OpenCV] 模板 {os.path.basename(template_path)} 无匹配超过阈值 "
+            f"({threshold})"
         )
         return None
 
-    center_x = best_loc[0] + best_size[1] // 2
-    center_y = best_loc[1] + best_size[0] // 2
+    # 根据策略选择最佳匹配
+    if pick_mode == "bottom":
+        # 选择 Y 坐标最大（最靠下）的匹配
+        best = max(candidates, key=lambda c: c[1])  # c[1] = center_y
+        logger.info(f"[OpenCV] 底部策略: 从 {len(candidates)} 个候选中选择最靠下的匹配")
+    else:
+        # 默认：选择置信度最高的匹配
+        best = max(candidates, key=lambda c: c[2])  # c[2] = confidence
+
+    center_x, center_y, confidence, scale, th, tw = best
 
     logger.info(
         f"[OpenCV] 匹配成功: {os.path.basename(template_path)} "
         f"-> [{center_x}, {center_y}] "
-        f"(scale={best_scale:.1f}x, confidence={best_val:.3f})"
+        f"(scale={scale:.1f}x, confidence={confidence:.3f}, "
+        f"候选数={len(candidates)})"
     )
-    return [center_x, center_y]
+    return [int(center_x), int(center_y)]
 
 
 def detect_p1p2(image, threshold=None):
@@ -398,81 +452,10 @@ def detect_p1p2(image, threshold=None):
     p2 = None
     p2_template = _get_template_path("p2")
     if p2_template:
-        p2 = _match_template_multiscale(screen, p2_template, threshold)
+        p2 = _match_template_multiscale(
+            screen, p2_template, threshold, pick_mode="bottom"
+        )
     else:
         logger.warning("[OpenCV] 无 P2 模板图，跳过 P2 识别")
 
     return p1, p2
-
-
-def resolve_p1p2(capture_screen):
-    """
-    解析 P1/P2 点击坐标，供 qrmai_action 调用。
-
-    优先级：
-      1. config.json 中的 p1 / p2（非空时直接使用）
-      2. OpenCV 自动识别
-
-    Args:
-        capture_screen: 平台截图函数，返回 BGR ndarray
-
-    Returns:
-        (p1, p2) — 各自为 [x, y]
-
-    Raises:
-        RuntimeError: 两种方式均无法获取坐标
-    """
-    p1_cfg = config.get("p1")
-    p2_cfg = config.get("p2")
-
-    # 检查 config 中是否有有效坐标（非 None、非空列表、长度为 2）
-    p1_valid = (
-        p1_cfg is not None
-        and isinstance(p1_cfg, (list, tuple))
-        and len(p1_cfg) == 2
-        and all(isinstance(v, (int, float)) for v in p1_cfg)
-    )
-    p2_valid = (
-        p2_cfg is not None
-        and isinstance(p2_cfg, (list, tuple))
-        and len(p2_cfg) == 2
-        and all(isinstance(v, (int, float)) for v in p2_cfg)
-    )
-
-    if p1_valid and p2_valid:
-        logger.info(f"[OpenCV] 使用 config 坐标: P1={p1_cfg}, P2={p2_cfg}")
-        return list(p1_cfg), list(p2_cfg)
-
-    # config 坐标不完整，尝试 OpenCV 识别
-    logger.info(
-        "[OpenCV] config 坐标不完整 (P1={}, P2={})，尝试自动识别".format(
-            "有效" if p1_valid else "无效",
-            "有效" if p2_valid else "无效",
-        )
-    )
-
-    screen = capture_screen()
-    detected_p1, detected_p2 = detect_p1p2(screen)
-
-    if detected_p1 is None:
-        if p1_valid:
-            detected_p1 = list(p1_cfg)
-            logger.warning(f"[OpenCV] P1 识别失败，回退到 config: {detected_p1}")
-        else:
-            raise RuntimeError(
-                "无法获取 P1 坐标：config 为空且 OpenCV 识别失败，"
-                "请在 config.json 中设置 p1 或添加模板图到 templates_img/"
-            )
-
-    if detected_p2 is None:
-        if p2_valid:
-            detected_p2 = list(p2_cfg)
-            logger.warning(f"[OpenCV] P2 识别失败，回退到 config: {detected_p2}")
-        else:
-            raise RuntimeError(
-                "无法获取 P2 坐标：config 为空且 OpenCV 识别失败，"
-                "请在 config.json 中设置 p2 或添加模板图到 templates_img/"
-            )
-
-    logger.info(f"[OpenCV] 最终坐标: P1={detected_p1}, P2={detected_p2}")
-    return detected_p1, detected_p2

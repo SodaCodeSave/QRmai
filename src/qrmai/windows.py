@@ -6,12 +6,11 @@ QRmai Windows 平台代码
 import time
 import subprocess
 import ctypes
-from ctypes import wintypes
 
 import psutil
 from pynput.mouse import Controller as MouseController, Button
-import pygetwindow as gw  # noqa: F401 — 保留供未来窗口操作使用
 from mss import mss
+import cv2
 from pyzbar.pyzbar import decode
 from win32 import win32gui, win32process
 import win32con
@@ -26,6 +25,7 @@ mouse = MouseController()
 
 
 # ---- 进程管理 ----
+
 
 def kill_wechat_process():
     """杀死 WeChatAppEx.exe 进程（Windows）"""
@@ -57,6 +57,7 @@ def kill_wechat_process():
 
 # ---- 微信窗口定位 ----
 
+
 def find_wechat_window_by_process():
     """通过查找 Weixin.exe 进程来获取微信窗口句柄"""
 
@@ -79,6 +80,7 @@ def find_wechat_window_by_process():
 
 # ---- 鼠标操作 ----
 
+
 def _win_move_click(x, y):
     """Windows 下鼠标移动并点击"""
     mouse.position = (x, y)
@@ -86,6 +88,7 @@ def _win_move_click(x, y):
 
 
 # ---- Windows 屏幕截图（供 OpenCV 视觉识别使用） ----
+
 
 def windows_capture_screen(monitor: int = 1):
     """
@@ -98,7 +101,6 @@ def windows_capture_screen(monitor: int = 1):
         BGR 图像 (H, W, 3) uint8
     """
     import numpy as np
-    import cv2
 
     with mss() as sct:
         region = sct.monitors[monitor]
@@ -110,14 +112,13 @@ def windows_capture_screen(monitor: int = 1):
 
 # ---- 核心二维码获取 ----
 
+
 def windows_qrmai_action():
     """
     Windows 版二维码获取：
     1. 定位微信窗口 → 2. 自动点击获取二维码 → 3. 截图解码 → 4. 叠加皮肤返回
     5. 恢复鼠标到操作前位置
     """
-    from PIL import Image
-
     wechat_hwnd = find_wechat_window_by_process()
     if not wechat_hwnd:
         logger.warning("未找到Weixin.exe进程的窗口")
@@ -170,9 +171,8 @@ def windows_qrmai_action():
         for i in range(config["decode"]["retry_count"]):
             time.sleep(config["decode"]["time"] / config["decode"]["retry_count"])
 
-            with mss() as sct:
-                screenshot = sct.grab(sct.monitors[1])
-                image = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
+            bgr = windows_capture_screen()
+            image = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
 
             decoded_objects = decode(image)
 

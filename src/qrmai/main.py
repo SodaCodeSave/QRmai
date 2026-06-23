@@ -44,24 +44,21 @@ def main():
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config_merged, f, ensure_ascii=False, indent=4)
         config.update(config_merged)
-        try:
-            config_version = hashlib.md5(
-                (config["token"] + str(os.path.getmtime(config_path))).encode()
-            ).hexdigest()
-        except FileNotFoundError:
-            config_version = hashlib.md5(
-                (config["token"] + str(time.time())).encode()
-            ).hexdigest()
-        config["version"] = config_version
     else:
         default_cfg = get_default_config()
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(default_cfg, f, ensure_ascii=False, indent=4)
         config.update(default_cfg)
-        config_version = hashlib.md5(
+
+    # 计算配置版本（用于会话安全校验）
+    try:
+        config["version"] = hashlib.md5(
+            (config["token"] + str(os.path.getmtime(config_path))).encode()
+        ).hexdigest()
+    except FileNotFoundError:
+        config["version"] = hashlib.md5(
             (config["token"] + str(time.time())).encode()
         ).hexdigest()
-        config["version"] = config_version
 
     # 初始化 server 模块，注入依赖
     from qrmai import server
@@ -79,7 +76,7 @@ def main():
     # Linux: 启动时初始化劫持环境并启动微信
     # =========================================================================
     if IS_LINUX:
-        linux_setup()
+        linux_setup()  # pyright: ignore[reportPossiblyUnboundVariable]
 
     # 根据配置动态注册二维码路由
     qr_route = config.get("qr_route", "/qrmai")
@@ -89,9 +86,9 @@ def main():
     from webbrowser import open as open_webbrowser
 
     if config["host"] != "0.0.0.0":
-        open_webbrowser(f'http://{config["host"]}:{config["port"]}/login')
+        open_webbrowser(f"http://{config['host']}:{config['port']}/login")
     else:
-        open_webbrowser(f'http://localhost:{config["port"]}/login')
+        open_webbrowser(f"http://localhost:{config['port']}/login")
 
     try:
         server.app.run(
@@ -99,7 +96,7 @@ def main():
         )
     finally:
         if IS_LINUX:
-            linux_shutdown()
+            linux_shutdown()  # pyright: ignore[reportPossiblyUnboundVariable]
 
 
 if __name__ == "__main__":

@@ -10,11 +10,9 @@ import requests
 import json
 import os
 import sys
-import zipfile
 import shutil
 import subprocess
 import time
-from pathlib import Path
 
 # 尝试解决SSL证书验证问题
 try:

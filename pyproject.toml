@@ -17,6 +17,7 @@ dependencies = [
     "pywin32>=227; sys_platform == 'win32'",
     "evdev>=1.0; sys_platform == 'linux'",
     "wayland-automation>=0.2.7; sys_platform == 'linux'",
+    "term-image>=0.7.2",
 ]
 
 [project.scripts]

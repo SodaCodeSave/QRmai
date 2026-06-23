@@ -163,3 +163,6 @@ skin.png
 packaging/libiconv.dll
 packaging/libzbar-64.dll
 config.json
+tests/
+img/*_user.png
+img/skin_*.png
