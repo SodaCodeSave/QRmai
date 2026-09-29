@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="mdui-theme-auto">
 
 <head>
     <meta charset="UTF-8">
@@ -303,6 +303,46 @@
         });
 
         // 手动更新按钮事件
+        let restarting = false;
+
+        // 等待程序下线（更新脚本正在替换文件）
+        function waitForOffline(attempt) {
+            if (attempt > 30) {
+                // 没观测到下线，可能替换极快，直接转入在线检测
+                waitForOnline(0);
+                return;
+            }
+            setTimeout(() => {
+                fetch('/login', { method: 'GET' })
+                    .then(() => waitForOffline(attempt + 1))
+                    .catch(() => waitForOnline(0));
+            }, 1000);
+        }
+
+        // 等待新版本程序重新上线
+        function waitForOnline(attempt) {
+            if (attempt > 90) {
+                restarting = false;
+                document.getElementById('manualUpdateBtn').disabled = false;
+                document.getElementById('manualUpdateBtn').textContent = '手动更新';
+                const div = document.getElementById('updateStatus');
+                div.innerHTML = '<mdui-alert variant="error">等待程序重启超时，请手动刷新页面。</mdui-alert>';
+                div.style.display = 'block';
+                return;
+            }
+            setTimeout(() => {
+                fetch('/login', { method: 'GET' })
+                    .then(resp => {
+                        if (resp.ok) {
+                            window.location.href = '/login';
+                        } else {
+                            waitForOnline(attempt + 1);
+                        }
+                    })
+                    .catch(() => waitForOnline(attempt + 1));
+            }, 2000);
+        }
+
         document.getElementById('manualUpdateBtn').addEventListener('click', function () {
             const btn = this;
             const statusDiv = document.getElementById('updateStatus');
@@ -322,13 +362,12 @@
                 method: 'POST'
             })
                 .then(response => {
+                    statusDiv.style.display = 'block';
                     if (response.status === 200) {
-                        // 更新成功
-                        statusDiv.innerHTML = '<mdui-alert variant="success">更新成功！程序将自动重启。</mdui-alert>';
-                        // 显示更新成功提示一段时间后刷新页面
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 3000);
+                        // 更新成功：等待程序下线再上线后跳转登录页
+                        restarting = true;
+                        statusDiv.innerHTML = '<mdui-alert variant="info">更新成功！程序正在重启，请稍候...</mdui-alert>';
+                        waitForOffline(0);
                     } else if (response.status === 204) {
                         // 无更新可用
                         statusDiv.innerHTML = '<mdui-alert variant="info">当前已是最新版本，无需更新。</mdui-alert>';
@@ -345,9 +384,11 @@
                     statusDiv.style.display = 'block';
                 })
                 .finally(() => {
-                    // 恢复按钮状态
-                    btn.disabled = false;
-                    btn.textContent = '手动更新';
+                    // 恢复按钮状态（等待重启期间保持禁用）
+                    if (!restarting) {
+                        btn.disabled = false;
+                        btn.textContent = '手动更新';
+                    }
                 });
         });
     </script>
