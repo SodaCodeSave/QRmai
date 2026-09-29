@@ -29,10 +29,31 @@ def build_executable():
     # Check if icon.png exists
     icon_exists = (project_root / "icon.png").exists()
 
-    # Check if DLL files exist
-    libiconv_dll = project_root / "packaging" / "libiconv.dll"
-    libzbar_dll = project_root / "packaging" / "libzbar-64.dll"
-    dll_files_exist = libiconv_dll.exists() and libzbar_dll.exists()
+    # ===== DLL 检测（改）=====
+    packaging_dir = project_root / "packaging"
+    required_dlls = ["libiconv.dll", "libzbar-64.dll"]
+
+    if not packaging_dir.exists():
+        print(f"Error: packaging directory not found: {packaging_dir}")
+        return False
+
+    missing = [n for n in required_dlls if not (packaging_dir / n).exists()]
+    if missing:
+        print(f"Error: Missing required DLLs: {missing}")
+        print("Please place them in the packaging directory.")
+        return False
+
+    # 收集 packaging 目录下所有 DLL（含 libzbar 的依赖）
+    all_dlls = sorted(packaging_dir.glob("*.dll"))
+    if not all_dlls:
+        print(f"Error: No DLL files found in {packaging_dir}")
+        return False
+
+    print("Found DLLs to package:")
+    for dll in all_dlls:
+        size_kb = dll.stat().st_size / 1024
+        print(f"  - {dll.name} ({size_kb:.1f} KB)")
+    # ===== DLL 检测结束 =====
 
     # Build PyInstaller command
     cmd = [
@@ -61,7 +82,7 @@ def build_executable():
     templates_dir = project_root / "templates"
     if templates_dir.exists():
         cmd.extend(["--add-data", f"{templates_dir}{os.pathsep}templates"])
-    
+
     # Add config.json to data files
     config_file = project_root / "config.json"
     if config_file.exists():
@@ -85,22 +106,19 @@ def build_executable():
             "skin_format": "new",
             "dev_mode": False
         }
-        
+
         import json
         with open(config_file, 'w', encoding='utf-8') as f:
             json.dump(default_config, f, ensure_ascii=False, indent=4)
-        
+
         cmd.extend(["--add-data", f"{config_file}{os.pathsep}."])
 
-    # Add DLL files to data files if they exist
-    if dll_files_exist:
-        cmd.extend(["--add-data", f"{libiconv_dll}{os.pathsep}."])
-        cmd.extend(["--add-data", f"{libzbar_dll}{os.pathsep}."])
-    else:
-        print("Warning: libiconv.dll and libzbar-64.dll not found, the packaged program will not work properly, please place them and rebuild")
-        print("Please place these DLL files in the packaging directory to ensure the program works properly")
-        return False
-    
+    # ===== 打包所有 DLL（改）=====
+    # 用 --add-binary 而不是 --add-data，让 PyInstaller 正确处理二进制
+    for dll in all_dlls:
+        cmd.extend(["--add-binary", f"{dll}{os.pathsep}."])
+    # ===== DLL 打包结束 =====
+
     # Add hidden imports
     hidden_imports = [
         "pynput",

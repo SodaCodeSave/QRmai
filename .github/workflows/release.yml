@@ -23,6 +23,70 @@ jobs:
       with:
         python-version: '3.9'
 
+    # ===== 从 MSYS2 获取 DLL =====
+    - name: Setup MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-x86_64-libiconv
+          mingw-w64-x86_64-zbar
+          mingw-w64-x86_64-ntldd
+
+    - name: Fetch DLLs from MSYS2
+      shell: msys2 {0}
+      run: |
+        set -e
+        mkdir -p packaging
+
+        # 1) libiconv：同时提供 libiconv-2.dll 和 libiconv.dll 两个名字
+        #    - libiconv-2.dll 是 libzbar-0.dll 内部写死的依赖名
+        #    - libiconv.dll   是项目代码（ctypes）期望的名字
+        cp /mingw64/bin/libiconv-2.dll  packaging/libiconv-2.dll
+        cp /mingw64/bin/libiconv-2.dll  packaging/libiconv.dll
+        if [ -f /mingw64/bin/libcharset-1.dll ]; then
+          cp /mingw64/bin/libcharset-1.dll packaging/
+        fi
+
+        # 2) libzbar：项目期望的名字是 libzbar-64.dll
+        cp /mingw64/bin/libzbar-0.dll packaging/libzbar-64.dll
+
+        # 3) 递归抓取 libzbar-0.dll 的所有 mingw64 依赖
+        ntldd -R /mingw64/bin/libzbar-0.dll \
+          | grep -oP 'mingw64\\bin\\\K[^ ]+\.dll' \
+          | sort -u \
+          | while read -r dll; do
+              if [ -f "/mingw64/bin/$dll" ]; then
+                cp -n "/mingw64/bin/$dll" packaging/
+              fi
+            done
+
+        echo "=== packaging 目录内容 ==="
+        ls -l packaging/
+
+    - name: Verify required DLL files
+      shell: pwsh
+      run: |
+        $required = @(
+          "packaging/libiconv.dll",
+          "packaging/libzbar-64.dll"
+        )
+        foreach ($f in $required) {
+          if (Test-Path $f -PathType Leaf) {
+            $size = (Get-Item $f).Length
+            if ($size -eq 0) {
+              Write-Error "File is empty: $f"
+              exit 1
+            }
+            Write-Host "OK: $f ($([math]::Round($size/1KB,2)) KB)"
+          } else {
+            Write-Error "Missing: $f"
+            exit 1
+          }
+        }
+    # ===== MSYS2 部分结束 =====
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -47,38 +111,31 @@ jobs:
         }
       shell: pwsh
 
-    - name: Check for required DLL files
-      run: |
-        $libiconvDll = "packaging/libiconv.dll"
-        $libzbarDll = "packaging/libzbar-64.dll"
-
-        if (Test-Path $libiconvDll -PathType Leaf) {
-          echo "Found $libiconvDll"
-        } else {
-          echo "Missing $libiconvDll - this will cause the build to fail"
-          # For this workflow, we'll create placeholder files if they don't exist
-          # In a real scenario, these would be obtained from a secure source
-          echo "Creating placeholder DLL file: $libiconvDll"
-          New-Item -ItemType File -Path $libiconvDll
-        }
-
-        if (Test-Path $libzbarDll -PathType Leaf) {
-          echo "Found $libzbarDll"
-        } else {
-          echo "Missing $libzbarDll - this will cause the build to fail"
-          # For this workflow, we'll create placeholder files if they don't exist
-          # In a real scenario, these would be obtained from a secure source
-          echo "Creating placeholder DLL file: $libzbarDll"
-          New-Item -ItemType File -Path $libzbarDll
-        }
-      shell: pwsh
-
     - name: Run build script
       run: |
         # Set Python to use UTF-8 encoding
         $env:PYTHONIOENCODING = "utf-8"
         python -c "import sys; print('Python version:', sys.version); print('Default encoding:', sys.getdefaultencoding())"
         python packaging/build_exe.py
+
+    # ===== 冒烟测试：确认 exe 能启动（缺 DLL 会立刻挂）=====
+    - name: Smoke test the exe
+      shell: pwsh
+      run: |
+        $exe = "dist\QRmai.exe"
+        if (-Not (Test-Path $exe)) {
+          Write-Error "Exe not found: $exe"
+          exit 1
+        }
+        $p = Start-Process -FilePath $exe -PassThru -WindowStyle Hidden
+        Start-Sleep -Seconds 8
+        if ($p.HasExited) {
+          Write-Error "Exe exited early with code $($p.ExitCode) - likely missing DLLs"
+          exit 1
+        }
+        Stop-Process -Id $p.Id -Force
+        Write-Host "Smoke test passed: exe is running"
+    # ===== 冒烟测试结束 =====
 
     - name: Prepare release assets
       run: |
