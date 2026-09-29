@@ -14,6 +14,17 @@
             margin-bottom: 16px;
         }
 
+        /* 深色模式 */
+        @media (prefers-color-scheme: dark) {
+            .setting-description {
+                color: #b7b7b7;
+            }
+
+            .mouse-position-box {
+                background-color: #333;
+            }
+        }
+
         mdui-text-field,
         mdui-switch,
         mdui-segmented-button-group {
@@ -136,9 +147,10 @@
                         请根据您的屏幕分辨率调整以下坐标值。坐标格式为 X,Y（例如：1087,799）
                     </div>
                     <div id="mousePosition"
-                        style="margin-bottom: 16px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;">
+                        style="margin-bottom: 16px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;"
+                        class="mouse-position-box">
                         当前鼠标坐标: <span id="mouseX">0</span>, <span id="mouseY">0</span><br>
-                        只有在网页全屏后才能正确显示鼠标坐标
+                        只有在网页F11全屏后才能正确显示鼠标坐标
                     </div>
                     <form method="post" action="/settings" class="setting-form">
                         <!-- P1 Position -->
@@ -179,9 +191,7 @@
             <div style="padding: 24px;">
                 <h2>关于</h2>
                 <div class="setting-description">
-                    本来这里是我们的qq群的<br>
-                    但是我觉得像街边的小广告一样看着很难受<br>
-                    改成我们的[Github地址](https://github.com/SodaCodeSave/QRmai)吧
+                    <a href="https://github.com/SodaCodeSave/QRmai">Github地址</a>
                 </div>
                 <mdui-button id="checkUpdateBtn" variant="outlined">检查更新</mdui-button>
                 <mdui-button id="manualUpdateBtn" variant="filled" color="primary"
