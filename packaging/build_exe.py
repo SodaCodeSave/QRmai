@@ -67,7 +67,9 @@ def build_executable():
         f"--distpath={project_root / 'dist'}",    # Output directory
         f"--workpath={project_root / 'build'}",   # Build directory
         f"--specpath={project_root}",             # Spec file directory
-        "--strip",                        # Strip symbols to reduce size
+        # 注意: 不要用 --strip。实测外部 strip 工具会损坏 mingw DLL
+        # (libiconv.dll 等), 导致冻结进程 LoadLibrary 报 WinError 998,
+        # pyzbar 在启动时直接 ImportError 崩溃。
     ]
 
     # Add icon.png as executable icon if it exists
@@ -82,6 +84,15 @@ def build_executable():
     templates_dir = project_root / "templates"
     if templates_dir.exists():
         cmd.extend(["--add-data", f"{templates_dir}{os.pathsep}templates"])
+
+    # Add version.txt to data files (required: updater reads it at runtime)
+    version_file = project_root / "version.txt"
+    if version_file.exists():
+        cmd.extend(["--add-data", f"{version_file}{os.pathsep}."])
+    else:
+        print(f"Error: version file not found {version_file}")
+        print("The packaged app cannot detect its own version without version.txt.")
+        return False
 
     # Add config.json to data files
     config_file = project_root / "config.json"
@@ -128,7 +139,9 @@ def build_executable():
         "mss",
         "pyzbar",
         "flask",
-        "pywin32"
+        "pywin32",
+        "updater",
+        "requests"
     ]
 
     for imp in hidden_imports:

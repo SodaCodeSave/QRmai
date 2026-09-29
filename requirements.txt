@@ -1,4 +1,5 @@
 Flask>=2.0
+requests>=2.25
 pynput>=1.7
 pygetwindow>=0.0.9
 qrcode[pil]>=7.3

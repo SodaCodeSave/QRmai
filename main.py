@@ -659,6 +659,10 @@ def check_update():
         # 检查是否有新版本
         has_update, latest_release = updater.is_new_version_available()
 
+        # 无法获取版本信息（网络/API错误），不要谎报“已是最新版本”
+        if getattr(updater, "last_error", ""):
+            return jsonify({"error": True, "message": updater.last_error})
+
         if has_update and latest_release:
             return jsonify(
                 {
@@ -683,22 +687,26 @@ def manual_update():
         # 导入updater模块
         import updater
 
-        # 检查是否有新版本并执行更新
-        has_update, latest_release = updater.is_new_version_available()
+        # 检查并执行更新（内部只请求一次API）
+        status = updater.check_and_update()
 
-        if has_update and latest_release:
-            # 执行更新
-            success = updater.check_and_update()
-
-            if success:
-                # 更新成功，返回200状态码
-                return "", 200
-            else:
-                # 更新失败
-                return jsonify({"error": True, "message": "更新失败"}), 500
-        else:
+        if status == "updated":
+            # 更新成功，程序将自动替换并重启
+            return "", 200
+        elif status == "no_update":
             # 无更新可用，返回204状态码
             return "", 204
+        else:
+            # 更新失败（网络错误/下载失败/替换失败）
+            return (
+                jsonify(
+                    {
+                        "error": True,
+                        "message": getattr(updater, "last_error", "") or "更新失败",
+                    }
+                ),
+                500,
+            )
     except Exception as e:
         return jsonify({"error": True, "message": f"手动更新时出错: {str(e)}"}), 500
 
@@ -733,6 +741,14 @@ if "version" not in config:
 if __name__ == "__main__":
     import hashlib
     import time
+
+    # 清理上一次自动更新留下的备份与临时文件
+    try:
+        import updater
+
+        updater.cleanup_after_update()
+    except Exception as e:
+        logger.warning(f"清理更新残留文件失败: {e}")
 
     # 读取配置文件
     if os.path.exists(config_path):
