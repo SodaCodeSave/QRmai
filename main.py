@@ -588,53 +588,64 @@ def qrmai():
         request_lock = False
 
 
+def _parse_config_value(prototype, value):
+    """按config中已有值的类型解析表单输入，非法时抛出ValueError"""
+    if isinstance(prototype, bool):
+        return value.lower() in ("true", "1", "yes", "on")
+    if isinstance(prototype, int):
+        return int(value)
+    if isinstance(prototype, float):
+        return float(value)
+    if isinstance(prototype, list):
+        parts = [p.strip() for p in value.split(",")]
+        if len(parts) != len(prototype):
+            raise ValueError(value)
+        if prototype and isinstance(prototype[0], int):
+            if not all(p.isdigit() for p in parts):
+                raise ValueError(value)
+            return [int(p) for p in parts]
+        return parts
+    return value
+
+
 @app.route("/settings", methods=["GET", "POST"])
 @require_auth
 def settings():
     if request.method == "POST":
-        # 读取POST参数并更新config
-        token_updated = False
         old_token = config["token"]
+        updates = {}
 
-        # 处理所有表单字段，包括布尔值字段
-        # 首先处理布尔值字段，确保未选中的开关也能正确处理
+        # 处理布尔值字段，确保未选中的开关也能正确处理
         boolean_fields = ["standalone_mode"]
         for field in boolean_fields:
             if field in config:
-                # 检查表单中是否包含该字段
-                config[field] = field in request.form and request.form[
+                updates[field] = field in request.form and request.form[
                     field
                 ].lower() in ("true", "1", "yes", "on")
 
-        # 处理其他字段
+        # 解析其他字段；非法输入返回400，不修改任何配置
         for key, value in request.form.items():
             # 跳过已处理的布尔值字段
             if key in boolean_fields:
                 continue
 
             if key in config:
-                # 尝试将字符串转换为对应类型（int/float/list）
-                if isinstance(config[key], bool):
-                    config[key] = value.lower() in ("true", "1", "yes", "on")
-                elif isinstance(config[key], int):
-                    config[key] = int(value)
-                elif isinstance(config[key], float):
-                    config[key] = float(value)
-                elif isinstance(config[key], list) and "," in value:
-                    config[key] = [
-                        int(v) if v.isdigit() else v for v in value.split(",")
-                    ]
-                else:
-                    config[key] = value
-                # 检查是否更新了token
-                if key == "token" and value != old_token:
-                    token_updated = True
+                try:
+                    updates[key] = _parse_config_value(config[key], value)
+                except (ValueError, TypeError):
+                    return jsonify({"error": f"字段 {key} 的值无效: {value}"}), 400
             elif key == "qr_route":  # 处理新的配置项
-                config[key] = value
+                updates[key] = value
                 # 二维码路由路径更改，需要更新路由
                 # 注意：在当前请求中无法动态修改路由，需要重启服务
 
-        # 保存更新后的config到文件
+        if "token" in updates and not str(updates["token"]).strip():
+            return jsonify({"error": "访问令牌不能为空"}), 400
+
+        # 全部校验通过，应用更新并保存到文件
+        config.update(updates)
+        token_updated = "token" in updates and updates["token"] != old_token
+
         with open("config.json", "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=4)
         # 如果token被更新，需要更新配置版本信息

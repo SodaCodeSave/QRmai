@@ -120,11 +120,11 @@ mdui-switch {
 
                     <!-- Port -->
                     <mdui-text-field label="服务器端口" name="port" value="{{ config.get('port', 5000) }}" type="number"
-                        helper="服务器监听的端口号"></mdui-text-field>
+                        min="1" max="65535" step="1" helper="服务器监听的端口号（1-65535）"></mdui-text-field>
 
                     <!-- Cache Duration -->
                     <mdui-text-field label="二维码缓存时间(秒)" name="cache_duration"
-                        value="{{ config.get('cache_duration', 60) }}" type="number"
+                        value="{{ config.get('cache_duration', 60) }}" type="number" min="0" step="1"
                         helper="二维码缓存时间，单位为秒"></mdui-text-field>
 
                     <mdui-button type="submit" variant="filled">保存基本设置</mdui-button>
@@ -159,7 +159,7 @@ mdui-switch {
                         value="{{ config.get('custom_skin_path', './skin.png') }}"
                         helper="自定义皮肤的图片位置"></mdui-text-field>
                     <mdui-text-field label="二维码大小" name="custom_skin_qrcode_size"
-                        value="{{ config.get('custom_skin_qrcode_size', '576') }}"
+                        value="{{ config.get('custom_skin_qrcode_size', '576') }}" type="number" min="1" step="1"
                         helper="自定义皮肤的二维码大小"></mdui-text-field>
                     <mdui-text-field label="二维码坐标" name="custom_skin_qrcode_point"
                         value="{{ config.get('custom_skin_qrcode_point', [106, 638])|join(',') }}"
@@ -205,10 +205,10 @@ mdui-switch {
                 <form method="post" action="/settings" class="setting-form">
                     <!-- Decode Settings -->
                     <mdui-text-field label="超时时间(秒)" name="decode.time"
-                        value="{{ config.get('decode', {}).get('time', 10) }}" type="number"
+                        value="{{ config.get('decode', {}).get('time', 10) }}" type="number" min="1" step="1"
                         helper="二维码解码超时时间"></mdui-text-field>
                     <mdui-text-field label="重试次数" name="decode.retry_count"
-                        value="{{ config.get('decode', {}).get('retry_count', 10) }}" type="number"
+                        value="{{ config.get('decode', {}).get('retry_count', 10) }}" type="number" min="0" step="1"
                         helper="二维码解码重试次数"></mdui-text-field>
 
                     <mdui-button type="submit" variant="filled">保存解码设置</mdui-button>
@@ -261,6 +261,42 @@ document.addEventListener('mousemove', function (e) {
     });
 });
 
+// 表单字段校验：返回错误消息或 null
+function intInRange(value, min, max) {
+    const v = value.trim();
+    return /^\d+$/.test(v) && Number(v) >= min && Number(v) <= max;
+}
+
+function coordFormat(value) {
+    return /^\s*\d+\s*,\s*\d+\s*$/.test(value) ? null : '坐标格式应为 X,Y（例如 1087,799）';
+}
+
+const fieldValidators = {
+    token: v => v.trim() ? null : '访问令牌不能为空',
+    qr_route: v => /^\/\S*$/.test(v) ? null : '二维码访问路径必须以 / 开头且不含空格',
+    host: v => v.trim() ? null : '服务器地址不能为空',
+    port: v => intInRange(v, 1, 65535) ? null : '端口需为 1-65535 的整数',
+    cache_duration: v => intInRange(v, 0, 86400) ? null : '缓存时间需为 0-86400 的整数',
+    'decode.time': v => intInRange(v, 1, 3600) ? null : '超时时间需为 1-3600 的整数',
+    'decode.retry_count': v => intInRange(v, 0, 100) ? null : '重试次数需为 0-100 的整数',
+    p1: coordFormat,
+    p2: coordFormat,
+    custom_skin_qrcode_point: coordFormat,
+    custom_skin_qrcode_size: v => intInRange(v, 1, 100000) ? null : '二维码大小需为正整数'
+};
+
+// 从响应中解析服务端错误消息
+function serverErrorMessage(response) {
+    return response.text().then(text => {
+        try {
+            const data = JSON.parse(text);
+            return data.error || data.message || null;
+        } catch (e) {
+            return null;
+        }
+    });
+}
+
 // 为所有表单添加提交事件监听器
 document.querySelectorAll('.setting-form').forEach(form => {
     form.addEventListener('submit', function (e) {
@@ -268,6 +304,25 @@ document.querySelectorAll('.setting-form').forEach(form => {
 
         // 创建FormData对象并发送POST请求
         const formData = new FormData(this);
+
+        // 提交前校验字段
+        for (const [name, validator] of Object.entries(fieldValidators)) {
+            if (!formData.has(name)) {
+                continue;
+            }
+            const error = validator(String(formData.get(name)));
+            if (error) {
+                mdui.snackbar({
+                    message: error,
+                    placement: 'top'
+                });
+                const field = this.querySelector('[name="' + name + '"]');
+                if (field && field.focus) {
+                    field.focus();
+                }
+                return;
+            }
+        }
 
         fetch('/settings', {
             method: 'POST',
@@ -291,10 +346,12 @@ document.querySelectorAll('.setting-form').forEach(form => {
                         window.location.href = '/login';
                     }, 1500);
                 } else {
-                    // 其他错误
-                    mdui.snackbar({
-                        message: '保存失败',
-                        placement: 'top'
+                    // 显示服务端错误消息（如字段校验失败）
+                    return serverErrorMessage(response).then(message => {
+                        mdui.snackbar({
+                            message: message || '保存失败',
+                            placement: 'top'
+                        });
                     });
                 }
             })
