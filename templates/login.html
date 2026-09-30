@@ -81,6 +81,8 @@ body {
 {% endblock %}
 
 {% block script %}
+const csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+
 document.getElementById('loginForm').addEventListener('submit', function (e) {
     e.preventDefault();
 
@@ -98,6 +100,7 @@ document.getElementById('loginForm').addEventListener('submit', function (e) {
         method: 'POST',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrfToken
         },
         body: 'token=' + encodeURIComponent(token)
     })
@@ -110,8 +113,8 @@ document.getElementById('loginForm').addEventListener('submit', function (e) {
                 errorMessage.style.display = 'block';
                 window.location.href = '/settings';
             } else {
-                // 令牌错误
-                errorMessage.textContent = '令牌无效，请重新输入';
+                // 令牌错误或被限流
+                errorMessage.textContent = data.error || '令牌无效，请重新输入';
                 errorMessage.style.color = '';
                 errorMessage.style.display = 'block';
             }

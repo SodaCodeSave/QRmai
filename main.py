@@ -236,6 +236,39 @@ last_qr_bytes = None  # 上次生成的二维码字节数据
 last_qr_time = 0  # 上次生成二维码的时间戳
 
 
+# 登录失败限流：{ip: [失败时间戳, ...]}
+LOGIN_FAILURE_WINDOW = 600  # 统计窗口（秒）
+LOGIN_MAX_FAILURES = 5  # 窗口内最大失败次数
+login_failures = {}
+
+
+def _login_rate_limited(ip):
+    """检查来源IP是否已超过登录失败次数上限（滑动窗口）"""
+    now = time.time()
+    failures = [t for t in login_failures.get(ip, []) if now - t < LOGIN_FAILURE_WINDOW]
+    login_failures[ip] = failures
+    return len(failures) >= LOGIN_MAX_FAILURES
+
+
+@app.before_request
+def csrf_protect():
+    """CSRF防护：POST请求必须携带与session匹配的X-CSRFToken头"""
+    if request.method != "POST":
+        # GET请求时为会话准备CSRF令牌
+        if "csrf_token" not in session:
+            session["csrf_token"] = uuid4().hex
+        return None
+
+    expected = session.get("csrf_token")
+    token = request.headers.get("X-CSRFToken")
+    if not expected or not token or token != expected:
+        logger.warning(
+            f"来自{request.remote_addr}的CSRF校验失败: {request.path}"
+        )
+        return jsonify({"error": "CSRF校验失败，请刷新页面后重试"}), 403
+    return None
+
+
 def _unauthenticated_response():
     """未认证时的响应：AJAX请求返回401 JSON，普通请求重定向到登录页"""
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
@@ -270,16 +303,22 @@ def require_auth(f):
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
+        ip = request.remote_addr or "unknown"
+        if _login_rate_limited(ip):
+            logger.warning(f"来自{ip}的登录请求因失败次数过多被拒绝")
+            return {"success": False, "error": "尝试次数过多，请10分钟后再试"}, 429
         token = request.form.get("token")
         if token and token == config["token"]:
             session["authenticated"] = True
             # 存储配置版本信息到session中，用于增强安全性
             session["config_version"] = config.get("version")
+            login_failures.pop(ip, None)
             logger.info(f"来自{request.remote_addr}的成功登录请求")
             return {"success": True}
         else:
+            login_failures.setdefault(ip, []).append(time.time())
             logger.info(f"来自{request.remote_addr}的登录请求失败")
-            return {"success": False}
+            return {"success": False, "error": "令牌无效，请重新输入"}
     logger.info(f"{request.remote_addr}尝试进入登录页面")
     return render_template("login.html")
 

@@ -297,8 +297,11 @@ function redirectToLogin() {
     }, 1500);
 }
 
-// AJAX 请求标记，后端据此返回401而非重定向
-const ajaxHeaders = { 'X-Requested-With': 'XMLHttpRequest' };
+// AJAX 请求标记，后端据此返回401而非重定向；同时携带CSRF令牌
+const ajaxHeaders = {
+    'X-Requested-With': 'XMLHttpRequest',
+    'X-CSRFToken': (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
+};
 
 // 从响应中解析服务端错误消息
 function serverErrorMessage(response) {
