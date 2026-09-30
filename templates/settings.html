@@ -212,10 +212,23 @@
                 .replace(/'/g, '&#39;');
         }
 
-        // 实时显示鼠标坐标
+        // 实时显示鼠标坐标（rAF 节流，避免高频 mousemove 直接操作 DOM 触发重排）
+        let pendingMouseX = 0;
+        let pendingMouseY = 0;
+        let mouseRafPending = false;
+
         document.addEventListener('mousemove', function (e) {
-            document.getElementById('mouseX').textContent = e.clientX;
-            document.getElementById('mouseY').textContent = e.clientY;
+            pendingMouseX = e.clientX;
+            pendingMouseY = e.clientY;
+            if (mouseRafPending) {
+                return;
+            }
+            mouseRafPending = true;
+            requestAnimationFrame(function () {
+                document.getElementById('mouseX').textContent = pendingMouseX;
+                document.getElementById('mouseY').textContent = pendingMouseY;
+                mouseRafPending = false;
+            });
         });
 
         // 为所有表单添加提交事件监听器
