@@ -44,6 +44,7 @@
 
    ```bash
    pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/
+   python packaging/fetch_mdui.py
    ```
 
 3. **启动服务**
