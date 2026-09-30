@@ -285,6 +285,21 @@ const fieldValidators = {
     custom_skin_qrcode_size: v => intInRange(v, 1, 100000) ? null : '二维码大小需为正整数'
 };
 
+// 会话过期统一处理：提示并跳转登录页
+function redirectToLogin() {
+    dirtyForms.clear();
+    mdui.snackbar({
+        message: '登录已过期，请重新登录',
+        placement: 'top'
+    });
+    setTimeout(() => {
+        window.location.href = '/login';
+    }, 1500);
+}
+
+// AJAX 请求标记，后端据此返回401而非重定向
+const ajaxHeaders = { 'X-Requested-With': 'XMLHttpRequest' };
+
 // 从响应中解析服务端错误消息
 function serverErrorMessage(response) {
     return response.text().then(text => {
@@ -297,8 +312,21 @@ function serverErrorMessage(response) {
     });
 }
 
+// 有未保存修改时拦截离开页面
+const dirtyForms = new Set();
+
+window.addEventListener('beforeunload', function (e) {
+    if (dirtyForms.size > 0) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+});
+
 // 为所有表单添加提交事件监听器
 document.querySelectorAll('.setting-form').forEach(form => {
+    form.addEventListener('input', () => dirtyForms.add(form));
+    form.addEventListener('change', () => dirtyForms.add(form));
+
     form.addEventListener('submit', function (e) {
         e.preventDefault();
 
@@ -326,25 +354,21 @@ document.querySelectorAll('.setting-form').forEach(form => {
 
         fetch('/settings', {
             method: 'POST',
+            headers: ajaxHeaders,
             body: formData
         })
             .then(response => {
                 if (response.ok) {
+                    // 保存成功，清除脏状态
+                    dirtyForms.delete(this);
                     // 显示成功消息
                     mdui.snackbar({
                         message: '设置已保存',
                         placement: 'top'
                     });
-                } else if (response.status === 403) {
-                    // Token验证失败
-                    mdui.snackbar({
-                        message: '认证失败，请重新登录',
-                        placement: 'top'
-                    });
-                    // 跳转到登录页面
-                    setTimeout(() => {
-                        window.location.href = '/login';
-                    }, 1500);
+                } else if (response.status === 401) {
+                    // 会话已过期
+                    redirectToLogin();
                 } else {
                     // 显示服务端错误消息（如字段校验失败）
                     return serverErrorMessage(response).then(message => {
@@ -367,8 +391,10 @@ document.querySelectorAll('.setting-form').forEach(form => {
 
 // 登出按钮事件
 document.getElementById('logoutBtn').addEventListener('click', function () {
+    dirtyForms.clear();
     fetch('/logout', {
-        method: 'POST'
+        method: 'POST',
+        headers: ajaxHeaders
     })
         .then(() => {
             window.location.href = '/login';
@@ -387,10 +413,20 @@ document.getElementById('checkUpdateBtn').addEventListener('click', function () 
 
     // 发送检查更新请求
     fetch('/check_update', {
-        method: 'POST'
+        method: 'POST',
+        headers: ajaxHeaders
     })
-        .then(response => response.json())
+        .then(response => {
+            if (response.status === 401) {
+                redirectToLogin();
+                return null;
+            }
+            return response.json();
+        })
         .then(data => {
+            if (!data) {
+                return;
+            }
             if (data.error) {
                 // 显示错误信息
                 statusDiv.innerHTML = `<mdui-alert variant="error">${escapeHtml(data.message)}</mdui-alert>`;
@@ -463,14 +499,10 @@ function waitForOnline(attempt) {
     }, 2000);
 }
 
-document.getElementById('manualUpdateBtn').addEventListener('click', function () {
-    const btn = this;
+// 执行手动更新
+function runManualUpdate() {
+    const btn = document.getElementById('manualUpdateBtn');
     const statusDiv = document.getElementById('updateStatus');
-
-    // 确认是否要进行更新
-    if (!confirm('确定要进行手动更新吗？更新过程中程序可能会重启。')) {
-        return;
-    }
 
     // 禁用按钮并显示加载状态
     btn.disabled = true;
@@ -479,7 +511,8 @@ document.getElementById('manualUpdateBtn').addEventListener('click', function ()
 
     // 发送手动更新请求
     fetch('/manual_update', {
-        method: 'POST'
+        method: 'POST',
+        headers: ajaxHeaders
     })
         .then(response => {
             statusDiv.style.display = 'block';
@@ -491,10 +524,13 @@ document.getElementById('manualUpdateBtn').addEventListener('click', function ()
             } else if (response.status === 204) {
                 // 无更新可用
                 statusDiv.innerHTML = '<mdui-alert variant="info">当前已是最新版本，无需更新。</mdui-alert>';
-            } else if (response.status === 500) {
-                // 更新失败
-                return response.json().then(data => {
-                    throw new Error(data.message || '更新失败');
+            } else if (response.status === 401) {
+                // 会话已过期
+                redirectToLogin();
+            } else {
+                // 其他错误（含500更新失败）
+                return response.json().catch(() => ({})).then(data => {
+                    throw new Error(data.error || data.message || '更新失败');
                 });
             }
         })
@@ -510,5 +546,16 @@ document.getElementById('manualUpdateBtn').addEventListener('click', function ()
                 btn.textContent = '手动更新';
             }
         });
+}
+
+document.getElementById('manualUpdateBtn').addEventListener('click', function () {
+    // 使用 MDUI 对话框替代原生 confirm，保持风格统一
+    mdui.confirm({
+        headline: '执行手动更新？',
+        description: '更新过程中程序可能会重启。',
+        confirmText: '更新',
+        cancelText: '取消',
+        onConfirm: runManualUpdate
+    });
 });
 {% endblock %}

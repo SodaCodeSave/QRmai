@@ -236,6 +236,13 @@ last_qr_bytes = None  # 上次生成的二维码字节数据
 last_qr_time = 0  # 上次生成二维码的时间戳
 
 
+def _unauthenticated_response():
+    """未认证时的响应：AJAX请求返回401 JSON，普通请求重定向到登录页"""
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"error": "未登录或会话已过期"}), 401
+    return redirect(url_for("login"))
+
+
 def require_auth(f):
     """装饰器：要求用户认证"""
     from functools import wraps
@@ -244,7 +251,7 @@ def require_auth(f):
     def decorated_function(*args, **kwargs):
         # 检查基础认证状态
         if "authenticated" not in session:
-            return redirect(url_for("login"))
+            return _unauthenticated_response()
 
         # 检查配置版本是否匹配（增强安全性）
         if "config_version" not in session or session["config_version"] != config.get(
@@ -253,7 +260,7 @@ def require_auth(f):
             # 配置已更改，需要重新登录
             session.pop("authenticated", None)
             session.pop("config_version", None)
-            return redirect(url_for("login"))
+            return _unauthenticated_response()
 
         return f(*args, **kwargs)
 
