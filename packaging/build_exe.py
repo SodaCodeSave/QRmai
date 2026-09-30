@@ -55,6 +55,14 @@ def build_executable():
         print(f"  - {dll.name} ({size_kb:.1f} KB)")
     # ===== DLL 检测结束 =====
 
+    # ===== 下载 MDUI 前端静态资源（自托管，替代 unpkg CDN）=====
+    import fetch_mdui
+
+    if not fetch_mdui.download(project_root):
+        print("Error: Failed to prepare MDUI static assets.")
+        return False
+    # ===== MDUI 资源准备结束 =====
+
     # Build PyInstaller command
     cmd = [
         sys.executable, "-m", "PyInstaller",
@@ -84,6 +92,11 @@ def build_executable():
     templates_dir = project_root / "templates"
     if templates_dir.exists():
         cmd.extend(["--add-data", f"{templates_dir}{os.pathsep}templates"])
+
+    # Add static assets (self-hosted MDUI) to data files
+    static_dir = project_root / "static"
+    if static_dir.exists():
+        cmd.extend(["--add-data", f"{static_dir}{os.pathsep}static"])
 
     # Add version.txt to data files (required: updater reads it at runtime)
     version_file = project_root / "version.txt"

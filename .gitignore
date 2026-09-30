@@ -163,3 +163,6 @@ skin.png
 packaging/libiconv.dll
 packaging/libzbar-64.dll
 config.json
+
+# 前端静态资源（由 packaging/fetch_mdui.py 在构建时自动下载）
+static/vendor/

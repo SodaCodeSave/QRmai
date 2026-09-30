@@ -33,7 +33,14 @@ def build_executable():
     libiconv_dll = project_root / "packaging" / "libiconv.dll"
     libzbar_dll = project_root / "packaging" / "libzbar-64.dll"
     dll_files_exist = libiconv_dll.exists() and libzbar_dll.exists()
-    
+
+    # 下载 MDUI 前端静态资源（自托管，替代 unpkg CDN）
+    import fetch_mdui
+
+    if not fetch_mdui.download(project_root):
+        print("错误: MDUI 静态资源准备失败")
+        return False
+
     # 构建Nuitka命令
     cmd = [
         sys.executable, "-m", "nuitka",
@@ -69,6 +76,11 @@ def build_executable():
     templates_dir = project_root / "templates"
     if templates_dir.exists():
         cmd.extend(["--include-data-dir=templates=templates"])
+
+    # 添加static静态资源（自托管的MDUI）
+    static_dir = project_root / "static"
+    if static_dir.exists():
+        cmd.extend(["--include-data-dir=static=static"])
     
     # 如果DLL文件存在，则添加到数据文件中
     if dll_files_exist:

@@ -222,7 +222,11 @@ if "version" not in config:
     config["version"] = config_version
 
 # 初始化Flask应用
-app = Flask(__name__, template_folder=resource_path("templates"))
+app = Flask(
+    __name__,
+    template_folder=resource_path("templates"),
+    static_folder=resource_path("static"),
+)
 app.secret_key = str(uuid4())  # 在生产环境中应该使用更安全的密钥
 
 # 添加全局变量用于缓存
