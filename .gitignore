@@ -166,3 +166,4 @@ config.json
 
 # 前端静态资源（由 packaging/fetch_mdui.py 在构建时自动下载）
 static/vendor/
+.playwright-mcp/
