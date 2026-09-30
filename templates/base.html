@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="mdui-theme-auto">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}QRMai{% endblock %}</title>
+    <link rel="icon" href="{{ url_for('favicon') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/mdui/mdui.css') }}" />
+    <script src="{{ url_for('static', filename='vendor/mdui/mdui.global.js') }}"></script>
+    <style>
+        {% block style %}{% endblock %}
+    </style>
+</head>
+
+<body>
+    {% block body %}{% endblock %}
+
+    <script>
+        {% block script %}{% endblock %}
+    </script>
+</body>
+
+</html>

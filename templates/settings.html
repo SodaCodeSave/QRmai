@@ -1,430 +1,457 @@
-<!DOCTYPE html>
-<html lang="zh-CN" class="mdui-theme-auto">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QRMai Settings</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/mdui/mdui.css') }}" />
-    <script src="{{ url_for('static', filename='vendor/mdui/mdui.global.js') }}"></script>
-    <style>
-        .setting-description {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 16px;
-        }
+{% block title %}QRMai 设置{% endblock %}
 
-        /* 深色模式 */
-        @media (prefers-color-scheme: dark) {
-            .setting-description {
-                color: #b7b7b7;
-            }
+{% block style %}
+.setting-description {
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 16px;
+}
 
-            .mouse-position-box {
-                background-color: #333;
-            }
-        }
+.page-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 8px;
+}
 
-        mdui-text-field,
-        mdui-switch,
-        mdui-segmented-button-group {
-            display: block;
-            margin-bottom: 16px;
-        }
+.card-content {
+    padding: 24px;
+}
 
-        mdui-switch {
-            margin-top: 8px;
-        }
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+}
 
-        /* 移动端优化 */
-        @media (max-width: 768px) {
-            .settings-grid {
-                grid-template-columns: 1fr !important;
-                gap: 16px !important;
-            }
+.mouse-position-box {
+    margin-bottom: 16px;
+    padding: 8px;
+    background-color: #f5f5f5;
+    color: #333;
+    border-radius: 4px;
+}
 
-            mdui-card {
-                margin: 8px !important;
-            }
+.about-card {
+    margin-top: 24px;
+}
 
-            .setting-description {
-                font-size: 13px;
-            }
-        }
+.manual-update-btn {
+    margin-left: 8px;
+}
 
-        .logout-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-        }
-    </style>
-</head>
+#updateStatus {
+    margin-top: 16px;
+    display: none;
+}
 
-<body>
-    <mdui-container>
-        <mdui-button id="logoutBtn" class="logout-btn" variant="outlined">登出</mdui-button>
+.field-label {
+    display: block;
+    margin-bottom: 8px;
+}
 
-        <div class="settings-grid"
-            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
-            <!-- 基本设置卡片 -->
-            <mdui-card>
-                <div style="padding: 24px;">
-                    <h2>基本设置</h2>
-                    <div class="setting-description">
-                        配置 QRMai 的基本参数。
-                    </div>
-                    <form method="post" action="/settings" class="setting-form">
-                        <!-- Token -->
-                        <mdui-text-field label="访问令牌" name="token" value="{{ config.get('token', '') }}"
-                            helper="访问二维码页面所需的令牌"></mdui-text-field>
+/* 深色模式 */
+@media (prefers-color-scheme: dark) {
+    .setting-description {
+        color: #b7b7b7;
+    }
 
-                        <!-- QR Route -->
-                        <mdui-text-field label="二维码访问路径" name="qr_route" value="{{ config.get('qr_route', '/qrmai') }}"
-                            helper="二维码服务的访问路径（例如：/qrmai, /qrcode）"></mdui-text-field>
+    .mouse-position-box {
+        background-color: #333;
+        color: #eee;
+    }
+}
 
-                        <!-- Host -->
-                        <mdui-text-field label="服务器地址" name="host" value="{{ config.get('host', '127.0.0.1') }}"
-                            helper="设置为0.0.0.0可内网访问"></mdui-text-field>
+mdui-text-field,
+mdui-switch,
+mdui-segmented-button-group {
+    display: block;
+    margin-bottom: 16px;
+}
 
-                        <!-- Port -->
-                        <mdui-text-field label="服务器端口" name="port" value="{{ config.get('port', 5000) }}" type="number"
-                            helper="服务器监听的端口号"></mdui-text-field>
+mdui-switch {
+    margin-top: 8px;
+}
 
-                        <!-- Cache Duration -->
-                        <mdui-text-field label="二维码缓存时间(秒)" name="cache_duration"
-                            value="{{ config.get('cache_duration', 60) }}" type="number"
-                            helper="二维码缓存时间，单位为秒"></mdui-text-field>
+/* 移动端优化 */
+@media (max-width: 768px) {
+    .settings-grid {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
 
-                        <mdui-button type="submit" variant="filled">保存基本设置</mdui-button>
-                    </form>
-                </div>
-            </mdui-card>
+    mdui-card {
+        margin: 8px;
+    }
 
-            <!-- 应用设置卡片 -->
-            <mdui-card>
-                <div style="padding: 24px;">
-                    <h2>应用设置</h2>
-                    <div class="setting-description">
-                        配置 QRMai 的应用程序相关参数。
-                    </div>
-                    <form method="post" action="/settings" class="setting-form">
-                        <!-- Standalone Mode -->
-                        <label for="standalone_mode">舞萌丨中二公众号是否使用独立窗口显示</label>
-                        <mdui-switch name="standalone_mode" value="true" {% if config.get('standalone_mode', False)
-                            %}checked{% endif %}></mdui-switch>
+    .setting-description {
+        font-size: 13px;
+    }
+}
+{% endblock %}
 
-                        <!-- Skin Format -->
-                        <label for="skin_format">皮肤格式</label>
-                        <mdui-segmented-button-group selects="single" value="{{ config.get('skin_format', 'new') }}"
-                            name="skin_format">
-                            <mdui-segmented-button value="new">新版皮肤</mdui-segmented-button>
-                            <mdui-segmented-button value="old">旧版皮肤</mdui-segmented-button>
-                            <mdui-segmented-button value="custom">自定义皮肤</mdui-segmented-button>
-                        </mdui-segmented-button-group>
+{% block body %}
+<mdui-container>
+    <div class="page-header">
+        <mdui-button id="logoutBtn" variant="outlined">登出</mdui-button>
+    </div>
 
-                        <label for="custom_skin">自定义皮肤设置</label>
-                        <mdui-text-field label="皮肤路径" name="custom_skin_path"
-                            value="{{ config.get('custom_skin_path', './skin.png') }}"
-                            helper="自定义皮肤的图片位置"></mdui-text-field>
-                        <mdui-text-field label="二维码大小" name="custom_skin_qrcode_size"
-                            value="{{ config.get('custom_skin_qrcode_size', '576') }}"
-                            helper="自定义皮肤的二维码大小"></mdui-text-field>
-                        <mdui-text-field label="二维码坐标" name="custom_skin_qrcode_point"
-                            value="{{ config.get('custom_skin_qrcode_point', [106, 638])|join(',') }}"
-                            helper="自定义皮肤的二维码坐标"></mdui-text-field>
-
-                        <mdui-button type="submit" variant="filled">保存应用设置</mdui-button>
-                    </form>
-                </div>
-            </mdui-card>
-
-            <!-- 位置设置卡片 -->
-            <mdui-card>
-                <div style="padding: 24px;">
-                    <h2>位置设置</h2>
-                    <div class="setting-description">
-                        请根据您的屏幕分辨率调整以下坐标值。坐标格式为 X,Y（例如：1087,799）
-                    </div>
-                    <div id="mousePosition"
-                        style="margin-bottom: 16px; padding: 8px; background-color: #f5f5f5; border-radius: 4px;"
-                        class="mouse-position-box">
-                        当前鼠标坐标: <span id="mouseX">0</span>, <span id="mouseY">0</span><br>
-                        只有在网页F11全屏后才能正确显示鼠标坐标
-                    </div>
-                    <form method="post" action="/settings" class="setting-form">
-                        <!-- P1 Position -->
-                        <mdui-text-field label="P1坐标(X,Y)" name="p1" value="{{ config.get('p1', [0, 0])|join(',') }}"
-                            helper="舞萌|中二服务号生成二维码按钮的位置"></mdui-text-field>
-
-                        <!-- P2 Position -->
-                        <mdui-text-field label="P2坐标(X,Y)" name="p2" value="{{ config.get('p2', [0, 0])|join(',') }}"
-                            helper="生成后的二维码的消息的位置"></mdui-text-field>
-
-                        <mdui-button type="submit" variant="filled">保存位置设置</mdui-button>
-                    </form>
-                </div>
-            </mdui-card>
-
-            <!-- 解码设置卡片 -->
-            <mdui-card>
-                <div style="padding: 24px;">
-                    <h2>解码设置</h2>
-                    <div class="setting-description">
-                        当程序无法正确识别二维码时，会根据以下设置进行重试
-                    </div>
-                    <form method="post" action="/settings" class="setting-form">
-                        <!-- Decode Settings -->
-                        <mdui-text-field label="超时时间(秒)" name="decode.time"
-                            value="{{ config.get('decode', {}).get('time', 10) }}" type="number"
-                            helper="二维码解码超时时间"></mdui-text-field>
-                        <mdui-text-field label="重试次数" name="decode.retry_count"
-                            value="{{ config.get('decode', {}).get('retry_count', 10) }}" type="number"
-                            helper="二维码解码重试次数"></mdui-text-field>
-
-                        <mdui-button type="submit" variant="filled">保存解码设置</mdui-button>
-                    </form>
-                </div>
-            </mdui-card>
-        </div>
-        <mdui-card style="margin-top: 24px;">
-            <div style="padding: 24px;">
-                <h2>关于</h2>
+    <div class="settings-grid">
+        <!-- 基本设置卡片 -->
+        <mdui-card>
+            <div class="card-content">
+                <h2>基本设置</h2>
                 <div class="setting-description">
-                    <a href="https://github.com/SodaCodeSave/QRmai">Github地址</a>
+                    配置 QRMai 的基本参数。
                 </div>
-                <mdui-button id="checkUpdateBtn" variant="outlined">检查更新</mdui-button>
-                <mdui-button id="manualUpdateBtn" variant="filled" color="primary"
-                    style="margin-left: 8px;">手动更新</mdui-button>
-                <div id="updateStatus" style="margin-top: 16px; display: none;"></div>
+                <form method="post" action="/settings" class="setting-form">
+                    <!-- Token -->
+                    <mdui-text-field label="访问令牌" name="token" value="{{ config.get('token', '') }}"
+                        helper="访问二维码页面所需的令牌"></mdui-text-field>
+
+                    <!-- QR Route -->
+                    <mdui-text-field label="二维码访问路径" name="qr_route" value="{{ config.get('qr_route', '/qrmai') }}"
+                        helper="二维码服务的访问路径（例如：/qrmai, /qrcode）"></mdui-text-field>
+
+                    <!-- Host -->
+                    <mdui-text-field label="服务器地址" name="host" value="{{ config.get('host', '127.0.0.1') }}"
+                        helper="设置为0.0.0.0可内网访问"></mdui-text-field>
+
+                    <!-- Port -->
+                    <mdui-text-field label="服务器端口" name="port" value="{{ config.get('port', 5000) }}" type="number"
+                        helper="服务器监听的端口号"></mdui-text-field>
+
+                    <!-- Cache Duration -->
+                    <mdui-text-field label="二维码缓存时间(秒)" name="cache_duration"
+                        value="{{ config.get('cache_duration', 60) }}" type="number"
+                        helper="二维码缓存时间，单位为秒"></mdui-text-field>
+
+                    <mdui-button type="submit" variant="filled">保存基本设置</mdui-button>
+                </form>
             </div>
         </mdui-card>
-    </mdui-container>
 
-    <script>
-        // HTML转义，防止外部数据（如 GitHub 更新日志）拼入 innerHTML 造成 XSS
-        function escapeHtml(value) {
-            return String(value)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-        }
+        <!-- 应用设置卡片 -->
+        <mdui-card>
+            <div class="card-content">
+                <h2>应用设置</h2>
+                <div class="setting-description">
+                    配置 QRMai 的应用程序相关参数。
+                </div>
+                <form method="post" action="/settings" class="setting-form">
+                    <!-- Standalone Mode -->
+                    <label for="standalone_mode">舞萌丨中二公众号是否使用独立窗口显示</label>
+                    <mdui-switch id="standalone_mode" name="standalone_mode" value="true" {% if
+                        config.get('standalone_mode', False) %}checked{% endif %}></mdui-switch>
 
-        // 实时显示鼠标坐标（rAF 节流，避免高频 mousemove 直接操作 DOM 触发重排）
-        let pendingMouseX = 0;
-        let pendingMouseY = 0;
-        let mouseRafPending = false;
+                    <!-- Skin Format -->
+                    <label for="skin_format">皮肤格式</label>
+                    <mdui-segmented-button-group id="skin_format" selects="single"
+                        value="{{ config.get('skin_format', 'new') }}" name="skin_format">
+                        <mdui-segmented-button value="new">新版皮肤</mdui-segmented-button>
+                        <mdui-segmented-button value="old">旧版皮肤</mdui-segmented-button>
+                        <mdui-segmented-button value="custom">自定义皮肤</mdui-segmented-button>
+                    </mdui-segmented-button-group>
 
-        document.addEventListener('mousemove', function (e) {
-            pendingMouseX = e.clientX;
-            pendingMouseY = e.clientY;
-            if (mouseRafPending) {
-                return;
-            }
-            mouseRafPending = true;
-            requestAnimationFrame(function () {
-                document.getElementById('mouseX').textContent = pendingMouseX;
-                document.getElementById('mouseY').textContent = pendingMouseY;
-                mouseRafPending = false;
-            });
-        });
+                    <span class="field-label">自定义皮肤设置</span>
+                    <mdui-text-field label="皮肤路径" name="custom_skin_path"
+                        value="{{ config.get('custom_skin_path', './skin.png') }}"
+                        helper="自定义皮肤的图片位置"></mdui-text-field>
+                    <mdui-text-field label="二维码大小" name="custom_skin_qrcode_size"
+                        value="{{ config.get('custom_skin_qrcode_size', '576') }}"
+                        helper="自定义皮肤的二维码大小"></mdui-text-field>
+                    <mdui-text-field label="二维码坐标" name="custom_skin_qrcode_point"
+                        value="{{ config.get('custom_skin_qrcode_point', [106, 638])|join(',') }}"
+                        helper="自定义皮肤的二维码坐标"></mdui-text-field>
 
-        // 为所有表单添加提交事件监听器
-        document.querySelectorAll('.setting-form').forEach(form => {
-            form.addEventListener('submit', function (e) {
-                e.preventDefault();
+                    <mdui-button type="submit" variant="filled">保存应用设置</mdui-button>
+                </form>
+            </div>
+        </mdui-card>
 
-                // 创建FormData对象并发送POST请求
-                const formData = new FormData(this);
+        <!-- 位置设置卡片 -->
+        <mdui-card>
+            <div class="card-content">
+                <h2>位置设置</h2>
+                <div class="setting-description">
+                    请根据您的屏幕分辨率调整以下坐标值。坐标格式为 X,Y（例如：1087,799）
+                </div>
+                <div id="mousePosition" class="mouse-position-box">
+                    当前鼠标坐标: <span id="mouseX">0</span>, <span id="mouseY">0</span><br>
+                    只有在网页F11全屏后才能正确显示鼠标坐标
+                </div>
+                <form method="post" action="/settings" class="setting-form">
+                    <!-- P1 Position -->
+                    <mdui-text-field label="P1坐标(X,Y)" name="p1" value="{{ config.get('p1', [0, 0])|join(',') }}"
+                        helper="舞萌|中二服务号生成二维码按钮的位置"></mdui-text-field>
 
-                fetch('/settings', {
-                    method: 'POST',
-                    body: formData
-                })
-                    .then(response => {
-                        if (response.ok) {
-                            // 显示成功消息
-                            mdui.snackbar({
-                                message: '设置已保存',
-                                placement: 'top'
-                            });
-                        } else if (response.status === 403) {
-                            // Token验证失败
-                            mdui.snackbar({
-                                message: '认证失败，请重新登录',
-                                placement: 'top'
-                            });
-                            // 跳转到登录页面
-                            setTimeout(() => {
-                                window.location.href = '/login';
-                            }, 1500);
-                        } else {
-                            // 其他错误
-                            mdui.snackbar({
-                                message: '保存失败',
-                                placement: 'top'
-                            });
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        mdui.snackbar({
-                            message: '网络错误',
-                            placement: 'top'
-                        });
+                    <!-- P2 Position -->
+                    <mdui-text-field label="P2坐标(X,Y)" name="p2" value="{{ config.get('p2', [0, 0])|join(',') }}"
+                        helper="生成后的二维码的消息的位置"></mdui-text-field>
+
+                    <mdui-button type="submit" variant="filled">保存位置设置</mdui-button>
+                </form>
+            </div>
+        </mdui-card>
+
+        <!-- 解码设置卡片 -->
+        <mdui-card>
+            <div class="card-content">
+                <h2>解码设置</h2>
+                <div class="setting-description">
+                    当程序无法正确识别二维码时，会根据以下设置进行重试
+                </div>
+                <form method="post" action="/settings" class="setting-form">
+                    <!-- Decode Settings -->
+                    <mdui-text-field label="超时时间(秒)" name="decode.time"
+                        value="{{ config.get('decode', {}).get('time', 10) }}" type="number"
+                        helper="二维码解码超时时间"></mdui-text-field>
+                    <mdui-text-field label="重试次数" name="decode.retry_count"
+                        value="{{ config.get('decode', {}).get('retry_count', 10) }}" type="number"
+                        helper="二维码解码重试次数"></mdui-text-field>
+
+                    <mdui-button type="submit" variant="filled">保存解码设置</mdui-button>
+                </form>
+            </div>
+        </mdui-card>
+    </div>
+    <mdui-card class="about-card">
+        <div class="card-content">
+            <h2>关于</h2>
+            <div class="setting-description">
+                <a href="https://github.com/SodaCodeSave/QRmai">Github地址</a>
+            </div>
+            <mdui-button id="checkUpdateBtn" variant="outlined">检查更新</mdui-button>
+            <mdui-button id="manualUpdateBtn" variant="filled" color="primary"
+                class="manual-update-btn">手动更新</mdui-button>
+            <div id="updateStatus"></div>
+        </div>
+    </mdui-card>
+</mdui-container>
+{% endblock %}
+
+{% block script %}
+// HTML转义，防止外部数据（如 GitHub 更新日志）拼入 innerHTML 造成 XSS
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// 实时显示鼠标坐标（rAF 节流，避免高频 mousemove 直接操作 DOM 触发重排）
+let pendingMouseX = 0;
+let pendingMouseY = 0;
+let mouseRafPending = false;
+
+document.addEventListener('mousemove', function (e) {
+    pendingMouseX = e.clientX;
+    pendingMouseY = e.clientY;
+    if (mouseRafPending) {
+        return;
+    }
+    mouseRafPending = true;
+    requestAnimationFrame(function () {
+        document.getElementById('mouseX').textContent = pendingMouseX;
+        document.getElementById('mouseY').textContent = pendingMouseY;
+        mouseRafPending = false;
+    });
+});
+
+// 为所有表单添加提交事件监听器
+document.querySelectorAll('.setting-form').forEach(form => {
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        // 创建FormData对象并发送POST请求
+        const formData = new FormData(this);
+
+        fetch('/settings', {
+            method: 'POST',
+            body: formData
+        })
+            .then(response => {
+                if (response.ok) {
+                    // 显示成功消息
+                    mdui.snackbar({
+                        message: '设置已保存',
+                        placement: 'top'
                     });
+                } else if (response.status === 403) {
+                    // Token验证失败
+                    mdui.snackbar({
+                        message: '认证失败，请重新登录',
+                        placement: 'top'
+                    });
+                    // 跳转到登录页面
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 1500);
+                } else {
+                    // 其他错误
+                    mdui.snackbar({
+                        message: '保存失败',
+                        placement: 'top'
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                mdui.snackbar({
+                    message: '网络错误',
+                    placement: 'top'
+                });
             });
-        });
+    });
+});
 
-        // 登出按钮事件
-        document.getElementById('logoutBtn').addEventListener('click', function () {
-            fetch('/logout', {
-                method: 'POST'
-            })
-                .then(() => {
+// 登出按钮事件
+document.getElementById('logoutBtn').addEventListener('click', function () {
+    fetch('/logout', {
+        method: 'POST'
+    })
+        .then(() => {
+            window.location.href = '/login';
+        });
+});
+
+// 检查更新按钮事件
+document.getElementById('checkUpdateBtn').addEventListener('click', function () {
+    const btn = this;
+    const statusDiv = document.getElementById('updateStatus');
+
+    // 禁用按钮并显示加载状态
+    btn.disabled = true;
+    btn.textContent = '检查中...';
+    statusDiv.style.display = 'none';
+
+    // 发送检查更新请求
+    fetch('/check_update', {
+        method: 'POST'
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                // 显示错误信息
+                statusDiv.innerHTML = `<mdui-alert variant="error">${escapeHtml(data.message)}</mdui-alert>`;
+            } else if (data.has_update) {
+                // 显示更新信息
+                statusDiv.innerHTML = `
+                <mdui-alert variant="info">
+                    <div>发现新版本: ${escapeHtml(data.version)}</div>
+                    <div>更新名称: ${escapeHtml(data.name)}</div>
+                    <div>发布时间: ${escapeHtml(data.published_at)}</div>
+                    <div>更新内容: ${escapeHtml(data.body || '无')}</div>
+                </mdui-alert>
+            `;
+            } else {
+                // 显示已是最新版本
+                statusDiv.innerHTML = `<mdui-alert variant="success">${escapeHtml(data.message)}</mdui-alert>`;
+            }
+            statusDiv.style.display = 'block';
+        })
+        .catch(error => {
+            // 显示网络错误
+            statusDiv.innerHTML = `<mdui-alert variant="error">网络错误: ${escapeHtml(error.message)}</mdui-alert>`;
+            statusDiv.style.display = 'block';
+        })
+        .finally(() => {
+            // 恢复按钮状态
+            btn.disabled = false;
+            btn.textContent = '检查更新';
+        });
+});
+
+// 手动更新按钮事件
+let restarting = false;
+
+// 等待程序下线（更新脚本正在替换文件）
+function waitForOffline(attempt) {
+    if (attempt > 30) {
+        // 没观测到下线，可能替换极快，直接转入在线检测
+        waitForOnline(0);
+        return;
+    }
+    setTimeout(() => {
+        fetch('/login', { method: 'GET' })
+            .then(() => waitForOffline(attempt + 1))
+            .catch(() => waitForOnline(0));
+    }, 1000);
+}
+
+// 等待新版本程序重新上线
+function waitForOnline(attempt) {
+    if (attempt > 90) {
+        restarting = false;
+        document.getElementById('manualUpdateBtn').disabled = false;
+        document.getElementById('manualUpdateBtn').textContent = '手动更新';
+        const div = document.getElementById('updateStatus');
+        div.innerHTML = '<mdui-alert variant="error">等待程序重启超时，请手动刷新页面。</mdui-alert>';
+        div.style.display = 'block';
+        return;
+    }
+    setTimeout(() => {
+        fetch('/login', { method: 'GET' })
+            .then(resp => {
+                if (resp.ok) {
                     window.location.href = '/login';
-                });
-        });
-
-        // 检查更新按钮事件
-        document.getElementById('checkUpdateBtn').addEventListener('click', function () {
-            const btn = this;
-            const statusDiv = document.getElementById('updateStatus');
-
-            // 禁用按钮并显示加载状态
-            btn.disabled = true;
-            btn.textContent = '检查中...';
-            statusDiv.style.display = 'none';
-
-            // 发送检查更新请求
-            fetch('/check_update', {
-                method: 'POST'
+                } else {
+                    waitForOnline(attempt + 1);
+                }
             })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        // 显示错误信息
-                        statusDiv.innerHTML = `<mdui-alert variant="error">${escapeHtml(data.message)}</mdui-alert>`;
-                    } else if (data.has_update) {
-                        // 显示更新信息
-                        statusDiv.innerHTML = `
-                        <mdui-alert variant="info">
-                            <div>发现新版本: ${escapeHtml(data.version)}</div>
-                            <div>更新名称: ${escapeHtml(data.name)}</div>
-                            <div>发布时间: ${escapeHtml(data.published_at)}</div>
-                            <div>更新内容: ${escapeHtml(data.body || '无')}</div>
-                        </mdui-alert>
-                    `;
-                    } else {
-                        // 显示已是最新版本
-                        statusDiv.innerHTML = `<mdui-alert variant="success">${escapeHtml(data.message)}</mdui-alert>`;
-                    }
-                    statusDiv.style.display = 'block';
-                })
-                .catch(error => {
-                    // 显示网络错误
-                    statusDiv.innerHTML = `<mdui-alert variant="error">网络错误: ${escapeHtml(error.message)}</mdui-alert>`;
-                    statusDiv.style.display = 'block';
-                })
-                .finally(() => {
-                    // 恢复按钮状态
-                    btn.disabled = false;
-                    btn.textContent = '检查更新';
+            .catch(() => waitForOnline(attempt + 1));
+    }, 2000);
+}
+
+document.getElementById('manualUpdateBtn').addEventListener('click', function () {
+    const btn = this;
+    const statusDiv = document.getElementById('updateStatus');
+
+    // 确认是否要进行更新
+    if (!confirm('确定要进行手动更新吗？更新过程中程序可能会重启。')) {
+        return;
+    }
+
+    // 禁用按钮并显示加载状态
+    btn.disabled = true;
+    btn.textContent = '更新中...';
+    statusDiv.style.display = 'none';
+
+    // 发送手动更新请求
+    fetch('/manual_update', {
+        method: 'POST'
+    })
+        .then(response => {
+            statusDiv.style.display = 'block';
+            if (response.status === 200) {
+                // 更新成功：等待程序下线再上线后跳转登录页
+                restarting = true;
+                statusDiv.innerHTML = '<mdui-alert variant="info">更新成功！程序正在重启，请稍候...</mdui-alert>';
+                waitForOffline(0);
+            } else if (response.status === 204) {
+                // 无更新可用
+                statusDiv.innerHTML = '<mdui-alert variant="info">当前已是最新版本，无需更新。</mdui-alert>';
+            } else if (response.status === 500) {
+                // 更新失败
+                return response.json().then(data => {
+                    throw new Error(data.message || '更新失败');
                 });
+            }
+        })
+        .catch(error => {
+            // 显示错误信息
+            statusDiv.innerHTML = `<mdui-alert variant="error">更新失败: ${escapeHtml(error.message)}</mdui-alert>`;
+            statusDiv.style.display = 'block';
+        })
+        .finally(() => {
+            // 恢复按钮状态（等待重启期间保持禁用）
+            if (!restarting) {
+                btn.disabled = false;
+                btn.textContent = '手动更新';
+            }
         });
-
-        // 手动更新按钮事件
-        let restarting = false;
-
-        // 等待程序下线（更新脚本正在替换文件）
-        function waitForOffline(attempt) {
-            if (attempt > 30) {
-                // 没观测到下线，可能替换极快，直接转入在线检测
-                waitForOnline(0);
-                return;
-            }
-            setTimeout(() => {
-                fetch('/login', { method: 'GET' })
-                    .then(() => waitForOffline(attempt + 1))
-                    .catch(() => waitForOnline(0));
-            }, 1000);
-        }
-
-        // 等待新版本程序重新上线
-        function waitForOnline(attempt) {
-            if (attempt > 90) {
-                restarting = false;
-                document.getElementById('manualUpdateBtn').disabled = false;
-                document.getElementById('manualUpdateBtn').textContent = '手动更新';
-                const div = document.getElementById('updateStatus');
-                div.innerHTML = '<mdui-alert variant="error">等待程序重启超时，请手动刷新页面。</mdui-alert>';
-                div.style.display = 'block';
-                return;
-            }
-            setTimeout(() => {
-                fetch('/login', { method: 'GET' })
-                    .then(resp => {
-                        if (resp.ok) {
-                            window.location.href = '/login';
-                        } else {
-                            waitForOnline(attempt + 1);
-                        }
-                    })
-                    .catch(() => waitForOnline(attempt + 1));
-            }, 2000);
-        }
-
-        document.getElementById('manualUpdateBtn').addEventListener('click', function () {
-            const btn = this;
-            const statusDiv = document.getElementById('updateStatus');
-
-            // 确认是否要进行更新
-            if (!confirm('确定要进行手动更新吗？更新过程中程序可能会重启。')) {
-                return;
-            }
-
-            // 禁用按钮并显示加载状态
-            btn.disabled = true;
-            btn.textContent = '更新中...';
-            statusDiv.style.display = 'none';
-
-            // 发送手动更新请求
-            fetch('/manual_update', {
-                method: 'POST'
-            })
-                .then(response => {
-                    statusDiv.style.display = 'block';
-                    if (response.status === 200) {
-                        // 更新成功：等待程序下线再上线后跳转登录页
-                        restarting = true;
-                        statusDiv.innerHTML = '<mdui-alert variant="info">更新成功！程序正在重启，请稍候...</mdui-alert>';
-                        waitForOffline(0);
-                    } else if (response.status === 204) {
-                        // 无更新可用
-                        statusDiv.innerHTML = '<mdui-alert variant="info">当前已是最新版本，无需更新。</mdui-alert>';
-                    } else if (response.status === 500) {
-                        // 更新失败
-                        return response.json().then(data => {
-                            throw new Error(data.message || '更新失败');
-                        });
-                    }
-                })
-                .catch(error => {
-                    // 显示错误信息
-                    statusDiv.innerHTML = `<mdui-alert variant="error">更新失败: ${escapeHtml(error.message)}</mdui-alert>`;
-                    statusDiv.style.display = 'block';
-                })
-                .finally(() => {
-                    // 恢复按钮状态（等待重启期间保持禁用）
-                    if (!restarting) {
-                        btn.disabled = false;
-                        btn.textContent = '手动更新';
-                    }
-                });
-        });
-    </script>
-</body>
-
-</html>
+});
+{% endblock %}

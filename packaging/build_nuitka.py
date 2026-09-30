@@ -67,6 +67,8 @@ def build_executable():
     # 如果icon.png存在，则设置为可执行文件图标
     if icon_exists:
         cmd.extend(["--windows-icon-from-ico=icon.png"])
+        # 同时作为数据文件打包，供 /favicon.ico 路由使用
+        cmd.extend(["--include-data-file=icon.png=icon.png"])
 
     # 如果skin.png存在，则添加到数据文件中
     if skin_exists:

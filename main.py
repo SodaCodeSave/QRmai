@@ -16,6 +16,7 @@ from flask import (
     redirect,
     url_for,
     jsonify,
+    send_file,
 )
 
 # 外部库导入
@@ -280,6 +281,12 @@ def login():
 def logout():
     session.pop("authenticated", None)
     return "", 204
+
+
+@app.route("/favicon.ico")
+def favicon():
+    """提供站点图标，避免 favicon 404"""
+    return send_file(resource_path("icon.png"), mimetype="image/png")
 
 
 def find_wechat_window_by_process():

@@ -83,6 +83,8 @@ def build_executable():
     # Add icon.png as executable icon if it exists
     if icon_exists:
         cmd.extend(["--icon", str(project_root / "icon.png")])
+        # 同时作为数据文件打包，供 /favicon.ico 路由使用
+        cmd.extend(["--add-data", f"{project_root / 'icon.png'}{os.pathsep}."])
 
     # Add skin.png to data files if it exists
     if skin_exists:
