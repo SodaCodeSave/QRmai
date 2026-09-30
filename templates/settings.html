@@ -202,6 +202,16 @@
     </mdui-container>
 
     <script>
+        // HTML转义，防止外部数据（如 GitHub 更新日志）拼入 innerHTML 造成 XSS
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         // 实时显示鼠标坐标
         document.addEventListener('mousemove', function (e) {
             document.getElementById('mouseX').textContent = e.clientX;
@@ -283,26 +293,26 @@
                 .then(data => {
                     if (data.error) {
                         // 显示错误信息
-                        statusDiv.innerHTML = `<mdui-alert variant="error">${data.message}</mdui-alert>`;
+                        statusDiv.innerHTML = `<mdui-alert variant="error">${escapeHtml(data.message)}</mdui-alert>`;
                     } else if (data.has_update) {
                         // 显示更新信息
                         statusDiv.innerHTML = `
                         <mdui-alert variant="info">
-                            <div>发现新版本: ${data.version}</div>
-                            <div>更新名称: ${data.name}</div>
-                            <div>发布时间: ${data.published_at}</div>
-                            <div>更新内容: ${data.body || '无'}</div>
+                            <div>发现新版本: ${escapeHtml(data.version)}</div>
+                            <div>更新名称: ${escapeHtml(data.name)}</div>
+                            <div>发布时间: ${escapeHtml(data.published_at)}</div>
+                            <div>更新内容: ${escapeHtml(data.body || '无')}</div>
                         </mdui-alert>
                     `;
                     } else {
                         // 显示已是最新版本
-                        statusDiv.innerHTML = `<mdui-alert variant="success">${data.message}</mdui-alert>`;
+                        statusDiv.innerHTML = `<mdui-alert variant="success">${escapeHtml(data.message)}</mdui-alert>`;
                     }
                     statusDiv.style.display = 'block';
                 })
                 .catch(error => {
                     // 显示网络错误
-                    statusDiv.innerHTML = `<mdui-alert variant="error">网络错误: ${error.message}</mdui-alert>`;
+                    statusDiv.innerHTML = `<mdui-alert variant="error">网络错误: ${escapeHtml(error.message)}</mdui-alert>`;
                     statusDiv.style.display = 'block';
                 })
                 .finally(() => {
@@ -390,7 +400,7 @@
                 })
                 .catch(error => {
                     // 显示错误信息
-                    statusDiv.innerHTML = `<mdui-alert variant="error">更新失败: ${error.message}</mdui-alert>`;
+                    statusDiv.innerHTML = `<mdui-alert variant="error">更新失败: ${escapeHtml(error.message)}</mdui-alert>`;
                     statusDiv.style.display = 'block';
                 })
                 .finally(() => {
