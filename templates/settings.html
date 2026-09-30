@@ -112,7 +112,7 @@ mdui-switch {
 
                     <!-- QR Route -->
                     <mdui-text-field label="二维码访问路径" name="qr_route" value="{{ config.get('qr_route', '/qrmai') }}"
-                        helper="二维码服务的访问路径（例如：/qrmai, /qrcode）"></mdui-text-field>
+                        helper="二维码服务的访问路径（例如：/qrmai, /qrcode），修改后需重启生效"></mdui-text-field>
 
                     <!-- Host -->
                     <mdui-text-field label="服务器地址" name="host" value="{{ config.get('host', '127.0.0.1') }}"
@@ -411,7 +411,7 @@ document.getElementById('checkUpdateBtn').addEventListener('click', function () 
 
     // 禁用按钮并显示加载状态
     btn.disabled = true;
-    btn.textContent = '检查中...';
+    btn.loading = true;
     statusDiv.style.display = 'none';
 
     // 发送检查更新请求
@@ -457,7 +457,7 @@ document.getElementById('checkUpdateBtn').addEventListener('click', function () 
         .finally(() => {
             // 恢复按钮状态
             btn.disabled = false;
-            btn.textContent = '检查更新';
+            btn.loading = false;
         });
 });
 
@@ -483,7 +483,7 @@ function waitForOnline(attempt) {
     if (attempt > 90) {
         restarting = false;
         document.getElementById('manualUpdateBtn').disabled = false;
-        document.getElementById('manualUpdateBtn').textContent = '手动更新';
+        document.getElementById('manualUpdateBtn').loading = false;
         const div = document.getElementById('updateStatus');
         div.innerHTML = '<mdui-alert variant="error">等待程序重启超时，请手动刷新页面。</mdui-alert>';
         div.style.display = 'block';
@@ -509,7 +509,7 @@ function runManualUpdate() {
 
     // 禁用按钮并显示加载状态
     btn.disabled = true;
-    btn.textContent = '更新中...';
+    btn.loading = true;
     statusDiv.style.display = 'none';
 
     // 发送手动更新请求
@@ -546,7 +546,7 @@ function runManualUpdate() {
             // 恢复按钮状态（等待重启期间保持禁用）
             if (!restarting) {
                 btn.disabled = false;
-                btn.textContent = '手动更新';
+                btn.loading = false;
             }
         });
 }
