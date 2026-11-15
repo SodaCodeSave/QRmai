@@ -34,11 +34,11 @@ def build_executable():
     libzbar_dll = project_root / "packaging" / "libzbar-64.dll"
     dll_files_exist = libiconv_dll.exists() and libzbar_dll.exists()
 
-    # 下载 MDUI 前端静态资源（自托管，替代 unpkg CDN）
-    import fetch_mdui
+    # 构建 DaisyUI + Tailwind 样式（需要 Node.js）
+    import build_css
 
-    if not fetch_mdui.download(project_root):
-        print("错误: MDUI 静态资源准备失败")
+    if not build_css.build(project_root):
+        print("错误: DaisyUI 样式构建失败")
         return False
 
     # 构建Nuitka命令
@@ -79,7 +79,7 @@ def build_executable():
     if templates_dir.exists():
         cmd.extend(["--include-data-dir=templates=templates"])
 
-    # 添加static静态资源（自托管的MDUI）
+    # 添加static静态资源（DaisyUI 样式）
     static_dir = project_root / "static"
     if static_dir.exists():
         cmd.extend(["--include-data-dir=static=static"])

@@ -1,6 +1,7 @@
 # 标准库导入
 import json  # JSON操作库
 import os
+import socket  # 用于枚举局域网地址
 import sys
 import time  # 时间相关操作
 import logging
@@ -165,6 +166,76 @@ def ensure_config_completeness(config):
     return config
 
 
+# 虚拟网卡名称关键字：向导里只展示真正可用的局域网地址
+_VIRTUAL_INTERFACE_HINTS = (
+    "docker",
+    "veth",
+    "br-",
+    "vmnet",
+    "vboxnet",
+    "vethernet",
+    "loopback",
+    "hyper-v",
+    "wsl",
+    "npcap",
+    "tailscale",
+    "ham",
+)
+
+
+def _ip_priority(ip):
+    """常见家庭/办公网段排在前面，其余地址靠后"""
+    parts = ip.split(".")
+    if len(parts) == 4 and all(p.isdigit() for p in parts):
+        if ip.startswith("192.168."):
+            return 0
+        if ip.startswith("10."):
+            return 1
+        if parts[0] == "172" and 16 <= int(parts[1]) <= 31:
+            return 2
+    return 3
+
+
+def get_lan_addresses():
+    """枚举可用的局域网 IPv4 地址，用于配置向导的二维码地址列表"""
+    found = {}
+    try:
+        for name, addresses in psutil.net_if_addrs().items():
+            lowered = name.lower()
+            if any(hint in lowered for hint in _VIRTUAL_INTERFACE_HINTS):
+                continue
+            for address in addresses:
+                if address.family != socket.AF_INET:
+                    continue
+                ip = address.address
+                # 跳过回环与自动私有地址（169.254/16）
+                if ip.startswith("127.") or ip.startswith("169.254."):
+                    continue
+                found.setdefault(ip, name)
+    except Exception as e:
+        logger.warning(f"枚举局域网地址失败: {e}")
+
+    items = [
+        {"ip": ip, "interface": name}
+        for ip, name in found.items()
+    ]
+    items.sort(key=lambda item: (_ip_priority(item["ip"]), item["ip"]))
+    return items
+
+
+def read_version():
+    """读取 version.txt，用于关于页面展示"""
+    try:
+        with open(resource_path("version.txt"), "r", encoding="utf-8") as f:
+            version = f.read().strip()
+    except OSError:
+        return "unknown"
+
+    if version and not version.lower().startswith("v"):
+        version = "v" + version
+    return version or "unknown"
+
+
 def kill_wechat_process():
     """
     杀死WeChatAppEx.exe进程
@@ -223,6 +294,14 @@ if "version" not in config:
             (config["token"] + str(time.time())).encode()
         ).hexdigest()
     config["version"] = config_version
+
+# 程序启动时实际生效的网络配置；改动 qr_route/host/port 后需要重启，
+# 配置向导据此提示「需重启生效」
+runtime_config = {
+    "qr_route": config.get("qr_route", "/qrmai"),
+    "host": config.get("host", "0.0.0.0"),
+    "port": config.get("port", 5000),
+}
 
 # 初始化Flask应用
 app = Flask(
@@ -642,6 +721,32 @@ def qrmai():
         request_lock = False
 
 
+@app.route("/test_qr", methods=["POST"])
+@require_auth
+def test_qr():
+    """配置向导的测试按钮：立即抓取一次二维码，不读写 /qrmai 的缓存"""
+    global request_lock
+
+    # 与 /qrmai 共用同一把锁，避免两路操作同时驱动鼠标
+    waited = 0.0
+    while request_lock:
+        if waited >= 120:
+            return jsonify({"error": "正在生成二维码，请稍后再试"}), 409
+        time.sleep(0.5)
+        waited += 0.5
+
+    request_lock = True
+    try:
+        img_io = qrmai_action()
+        img_io.seek(0)
+        return Response(img_io.getvalue(), mimetype="image/png")
+    except Exception as e:
+        logger.error(f"测试二维码失败: {e}")
+        return jsonify({"error": f"测试失败: {e}"}), 500
+    finally:
+        request_lock = False
+
+
 def _parse_config_value(prototype, value):
     """按config中已有值的类型解析表单输入，非法时抛出ValueError"""
     if isinstance(prototype, bool):
@@ -668,12 +773,13 @@ def settings():
     if request.method == "POST":
         old_token = config["token"]
         updates = {}
+        decode_updates = {}
 
-        # 处理布尔值字段，确保未选中的开关也能正确处理
+        # 处理布尔值字段；向导按步骤提交，未出现在本次请求里的开关保持原值
         boolean_fields = ["standalone_mode"]
         for field in boolean_fields:
-            if field in config:
-                updates[field] = field in request.form and request.form[
+            if field in config and field in request.form:
+                updates[field] = request.form[
                     field
                 ].lower() in ("true", "1", "yes", "on")
 
@@ -681,6 +787,20 @@ def settings():
         for key, value in request.form.items():
             # 跳过已处理的布尔值字段
             if key in boolean_fields:
+                continue
+
+            # 嵌套配置项（如 decode.time / decode.retry_count）
+            if key.startswith("decode."):
+                sub_key = key[len("decode."):]
+                decode_config = config.get("decode", {})
+                if sub_key not in decode_config:
+                    continue
+                try:
+                    decode_updates[sub_key] = _parse_config_value(
+                        decode_config[sub_key], value
+                    )
+                except (ValueError, TypeError):
+                    return jsonify({"error": f"字段 {key} 的值无效: {value}"}), 400
                 continue
 
             if key in config:
@@ -696,8 +816,13 @@ def settings():
         if "token" in updates and not str(updates["token"]).strip():
             return jsonify({"error": "访问令牌不能为空"}), 400
 
+        if "qr_route" in updates and not str(updates["qr_route"]).startswith("/"):
+            return jsonify({"error": "二维码访问路径必须以 / 开头"}), 400
+
         # 全部校验通过，应用更新并保存到文件
         config.update(updates)
+        if decode_updates:
+            config.setdefault("decode", {}).update(decode_updates)
         token_updated = "token" in updates and updates["token"] != old_token
 
         with open("config.json", "w", encoding="utf-8") as f:
@@ -721,7 +846,26 @@ def settings():
             session["config_version"] = config_version
         return "配置已更新", 200
     # GET请求时返回设置页面
-    return render_template("settings.html", config=config)
+    return render_template(
+        "settings.html",
+        config=config,
+        qr_meta={
+            "token": config.get("token", ""),
+            "route": config.get("qr_route", "/qrmai"),
+            "host": config.get("host", "0.0.0.0"),
+            "port": config.get("port", 5000),
+            "lan": get_lan_addresses(),
+            "decode_time": config.get("decode", {}).get("time", 10),
+            "runtime": runtime_config,
+        },
+    )
+
+
+@app.route("/about")
+@require_auth
+def about():
+    """关于页面：版本信息、检查更新、登出"""
+    return render_template("about.html", version=read_version())
 
 
 @app.route("/check_update", methods=["POST"])
@@ -859,6 +1003,10 @@ if __name__ == "__main__":
     # 根据配置动态注册二维码路由
     qr_route = config.get("qr_route", "/qrmai")
     app.add_url_rule(qr_route, "qrmai", qrmai)
+    # 记录本次启动实际生效的网络配置
+    runtime_config.update(
+        {"qr_route": qr_route, "host": config["host"], "port": config["port"]}
+    )
 
     if config.get("standalone_mode"):
         logger.info("[独立窗口] standalone_mode 已启用，将自动识别按钮与二维码位置")

@@ -1,593 +1,888 @@
 {% extends "base.html" %}
 
-{% block title %}QRMai 设置{% endblock %}
-
-{% block style %}
-.setting-description {
-    color: #666;
-    font-size: 14px;
-    margin-bottom: 16px;
-}
-
-/* 开关下方的补充说明 */
-.switch-helper {
-    margin-top: -8px;
-    font-size: 13px;
-}
-
-.page-header {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 8px;
-}
-
-.card-content {
-    padding: 24px;
-}
-
-.settings-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 24px;
-}
-
-.mouse-position-box {
-    margin-bottom: 16px;
-    padding: 8px;
-    background-color: #f5f5f5;
-    color: #333;
-    border-radius: 4px;
-}
-
-.about-card {
-    margin-top: 24px;
-}
-
-.manual-update-btn {
-    margin-left: 8px;
-}
-
-#updateStatus {
-    margin-top: 16px;
-    display: none;
-}
-
-.field-label {
-    display: block;
-    margin-bottom: 8px;
-}
-
-/* 非自定义皮肤时隐藏二维码大小/坐标 */
-#customSkinExtra[hidden] {
-    display: none;
-}
-
-/* 深色模式 */
-@media (prefers-color-scheme: dark) {
-    .setting-description {
-        color: #b7b7b7;
-    }
-
-    .mouse-position-box {
-        background-color: #333;
-        color: #eee;
-    }
-}
-
-mdui-text-field,
-mdui-switch,
-mdui-segmented-button-group {
-    display: block;
-    margin-bottom: 16px;
-}
-
-mdui-switch {
-    margin-top: 8px;
-}
-
-/* 移动端优化 */
-@media (max-width: 768px) {
-    .settings-grid {
-        grid-template-columns: 1fr;
-        gap: 16px;
-    }
-
-    mdui-card {
-        margin: 8px;
-    }
-
-    .setting-description {
-        font-size: 13px;
-    }
-}
-{% endblock %}
+{% block title %}QRmai 配置向导{% endblock %}
 
 {% block body %}
-<mdui-container>
-    <div class="page-header">
-        <mdui-button id="logoutBtn" variant="outlined">登出</mdui-button>
-    </div>
+<main class="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
+    <noscript>
+        <div class="alert alert-warning mb-5 text-sm">配置向导需要启用 JavaScript。</div>
+    </noscript>
 
-    <div class="settings-grid">
-        <!-- 基本设置卡片 -->
-        <mdui-card>
-            <div class="card-content">
-                <h2>基本设置</h2>
-                <div class="setting-description">
-                    配置 QRMai 的基本参数。
-                </div>
-                <form method="post" action="/settings" class="setting-form">
-                    <!-- Token -->
-                    <mdui-text-field label="访问令牌" name="token" value="{{ config.get('token', '') }}"
-                        helper="访问二维码页面所需的令牌"></mdui-text-field>
-
-                    <!-- QR Route -->
-                    <mdui-text-field label="二维码访问路径" name="qr_route" value="{{ config.get('qr_route', '/qrmai') }}"
-                        helper="二维码服务的访问路径（例如：/qrmai, /qrcode），修改后需重启生效"></mdui-text-field>
-
-                    <!-- Host -->
-                    <mdui-text-field label="服务器地址" name="host" value="{{ config.get('host', '127.0.0.1') }}"
-                        helper="设置为0.0.0.0可内网访问"></mdui-text-field>
-
-                    <!-- Port -->
-                    <mdui-text-field label="服务器端口" name="port" value="{{ config.get('port', 5000) }}" type="number"
-                        min="1" max="65535" step="1" helper="服务器监听的端口号（1-65535）"></mdui-text-field>
-
-                    <!-- Cache Duration -->
-                    <mdui-text-field label="二维码缓存时间(秒)" name="cache_duration"
-                        value="{{ config.get('cache_duration', 60) }}" type="number" min="0" step="1"
-                        helper="二维码缓存时间，单位为秒"></mdui-text-field>
-
-                    <mdui-button type="submit" variant="filled">保存基本设置</mdui-button>
-                </form>
-            </div>
-        </mdui-card>
-
-        <!-- 应用设置卡片 -->
-        <mdui-card>
-            <div class="card-content">
-                <h2>应用设置</h2>
-                <div class="setting-description">
-                    配置 QRMai 的应用程序相关参数。
-                </div>
-                <form method="post" action="/settings" class="setting-form">
-                    <!-- Standalone Mode -->
-                    <label for="standalone_mode">舞萌丨中二公众号是否使用独立窗口显示</label>
-                    <mdui-switch id="standalone_mode" name="standalone_mode" value="true" {% if
-                        config.get('standalone_mode', False) %}checked{% endif %}></mdui-switch>
-                    <div class="setting-description switch-helper">
-                        开启后自动识别独立窗口中的「玩家二维码」按钮和二维码位置，无需设置下方 P1/P2 坐标。
-                    </div>
-
-                    <!-- Skin Format -->
-                    <label for="skin_format">皮肤格式</label>
-                    <mdui-segmented-button-group id="skin_format" selects="single"
-                        value="{{ config.get('skin_format', 'new') }}" name="skin_format">
-                        <mdui-segmented-button value="new">新版皮肤</mdui-segmented-button>
-                        <mdui-segmented-button value="old">旧版皮肤</mdui-segmented-button>
-                        <mdui-segmented-button value="custom">自定义皮肤</mdui-segmented-button>
-                    </mdui-segmented-button-group>
-
-                    <span class="field-label">自定义皮肤设置</span>
-                    <mdui-text-field label="皮肤路径" name="custom_skin_path"
-                        value="{{ config.get('custom_skin_path', './skin.png') }}"
-                        helper="自定义皮肤的图片位置"></mdui-text-field>
-                    <div id="customSkinExtra" {% if config.get('skin_format', 'new') != 'custom' %}hidden{% endif %}>
-                        <mdui-text-field label="二维码大小" name="custom_skin_qrcode_size"
-                            value="{{ config.get('custom_skin_qrcode_size', '576') }}" type="number" min="1" step="1"
-                            helper="自定义皮肤的二维码大小"></mdui-text-field>
-                        <mdui-text-field label="二维码坐标" name="custom_skin_qrcode_point"
-                            value="{{ config.get('custom_skin_qrcode_point', [106, 638])|join(',') }}"
-                            helper="自定义皮肤的二维码坐标"></mdui-text-field>
-                    </div>
-
-                    <mdui-button type="submit" variant="filled">保存应用设置</mdui-button>
-                </form>
-            </div>
-        </mdui-card>
-
-        <!-- 位置设置卡片 -->
-        <mdui-card>
-            <div class="card-content">
-                <h2>位置设置</h2>
-                <div class="setting-description">
-                    请根据您的屏幕分辨率调整以下坐标值。坐标格式为 X,Y（例如：1087,799）<br>
-                    开启上方「独立窗口显示」后，程序会自动识别这两个位置，此处坐标将被忽略。
-                </div>
-                <div id="mousePosition" class="mouse-position-box">
-                    当前鼠标坐标: <span id="mouseX">0</span>, <span id="mouseY">0</span><br>
-                    只有在网页F11全屏后才能正确显示鼠标坐标
-                </div>
-                <form method="post" action="/settings" class="setting-form">
-                    <!-- P1 Position -->
-                    <mdui-text-field label="P1坐标(X,Y)" name="p1" value="{{ config.get('p1', [0, 0])|join(',') }}"
-                        helper="舞萌|中二服务号生成二维码按钮的位置"></mdui-text-field>
-
-                    <!-- P2 Position -->
-                    <mdui-text-field label="P2坐标(X,Y)" name="p2" value="{{ config.get('p2', [0, 0])|join(',') }}"
-                        helper="生成后的二维码的消息的位置"></mdui-text-field>
-
-                    <mdui-button type="submit" variant="filled">保存位置设置</mdui-button>
-                </form>
-            </div>
-        </mdui-card>
-
-        <!-- 解码设置卡片 -->
-        <mdui-card>
-            <div class="card-content">
-                <h2>解码设置</h2>
-                <div class="setting-description">
-                    当程序无法正确识别二维码时，会根据以下设置进行重试
-                </div>
-                <form method="post" action="/settings" class="setting-form">
-                    <!-- Decode Settings -->
-                    <mdui-text-field label="超时时间(秒)" name="decode.time"
-                        value="{{ config.get('decode', {}).get('time', 10) }}" type="number" min="1" step="1"
-                        helper="二维码解码超时时间"></mdui-text-field>
-                    <mdui-text-field label="重试次数" name="decode.retry_count"
-                        value="{{ config.get('decode', {}).get('retry_count', 10) }}" type="number" min="0" step="1"
-                        helper="二维码解码重试次数"></mdui-text-field>
-
-                    <mdui-button type="submit" variant="filled">保存解码设置</mdui-button>
-                </form>
-            </div>
-        </mdui-card>
-    </div>
-    <mdui-card class="about-card">
-        <div class="card-content">
-            <h2>关于</h2>
-            <div class="setting-description">
-                <a href="https://github.com/SodaCodeSave/QRmai">Github地址</a>
-            </div>
-            <mdui-button id="checkUpdateBtn" variant="outlined">检查更新</mdui-button>
-            <mdui-button id="manualUpdateBtn" variant="filled" color="primary"
-                class="manual-update-btn">手动更新</mdui-button>
-            <div id="updateStatus"></div>
+    <div class="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+            <h1 class="text-lg font-semibold tracking-tight">配置向导</h1>
+            <p class="mt-1 text-xs opacity-60">每步点「保存并继续」即写入配置；访问路径、监听地址与端口需重启后生效。</p>
         </div>
-    </mdui-card>
-</mdui-container>
+        <span id="saveState" class="text-xs opacity-60"></span>
+    </div>
+
+    <!-- 宽屏：分段式步骤导航 -->
+    <nav class="mb-6 hidden sm:block" aria-label="配置步骤">
+        <ol class="flex items-center gap-1 rounded-box border border-base-300 bg-base-100 p-1">
+            <li class="flex-1"><button type="button" class="step-tab" data-step-tab="1">1 · 访问与安全</button></li>
+            <li class="flex-1"><button type="button" class="step-tab" data-step-tab="2">2 · 服务与网络</button></li>
+            <li class="flex-1"><button type="button" class="step-tab" data-step-tab="3">3 · 抓取方式</button></li>
+            <li class="flex-1"><button type="button" class="step-tab" data-step-tab="4">4 · 二维码皮肤</button></li>
+            <li class="flex-1"><button type="button" class="step-tab" data-step-tab="5">5 · 测试与完成</button></li>
+        </ol>
+    </nav>
+
+    <!-- 窄屏用进度条代替步骤导航 -->
+    <div class="mb-6 sm:hidden">
+        <div class="mb-2 flex items-center justify-between text-xs">
+            <span id="mobileStepLabel" class="font-medium">第 1 步 · 访问与安全</span>
+            <span class="opacity-60">共 5 步</span>
+        </div>
+        <progress id="mobileStepProgress" class="progress progress-primary w-full" value="1" max="5"></progress>
+    </div>
+
+    <!-- 第 1 步：访问与安全 -->
+    <section data-panel="1" hidden>
+        <div class="overflow-hidden rounded-box border border-base-300 bg-base-100">
+            <div class="border-b border-base-300 px-5 py-4">
+                <h2 class="text-sm font-semibold">访问与安全</h2>
+                <p class="mt-1 text-xs opacity-60">客户端凭令牌取码，访问路径决定取码地址。</p>
+            </div>
+
+            <div class="flex flex-col gap-5 px-5 py-5">
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend text-sm font-medium">访问令牌</legend>
+                    <input class="input w-full" name="token" value="{{ config.get('token', '') }}" autocomplete="off"
+                        spellcheck="false" />
+                    <p class="text-xs opacity-60">客户端凭这个令牌换取二维码，建议改成长一点的随机串。</p>
+                </fieldset>
+
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend text-sm font-medium">二维码访问路径</legend>
+                    <input class="input w-full font-mono" name="qr_route" value="{{ config.get('qr_route', '/qrmai') }}"
+                        spellcheck="false" />
+                    <p class="text-xs opacity-60">以 / 开头，例如 /qrmai。修改后需重启。</p>
+                </fieldset>
+            </div>
+
+            <div class="flex items-center justify-end border-t border-base-300 bg-base-200/40 px-5 py-3">
+                <button type="button" class="btn btn-primary" data-next="2">保存并继续</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- 第 2 步：服务与网络 -->
+    <section data-panel="2" hidden>
+        <div class="overflow-hidden rounded-box border border-base-300 bg-base-100">
+            <div class="border-b border-base-300 px-5 py-4">
+                <h2 class="text-sm font-semibold">服务与网络</h2>
+                <p class="mt-1 text-xs opacity-60">决定程序监听在哪里，以及二维码缓存多久。</p>
+            </div>
+
+            <div class="flex flex-col gap-5 px-5 py-5">
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend text-sm font-medium">监听地址</legend>
+                    <input class="input w-full font-mono" name="host" value="{{ config.get('host', '0.0.0.0') }}"
+                        spellcheck="false" />
+                    <p class="text-xs opacity-60">0.0.0.0 允许局域网访问，127.0.0.1 仅本机。修改后需重启。</p>
+                </fieldset>
+
+                <div class="grid gap-5 sm:grid-cols-2">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend text-sm font-medium">端口</legend>
+                        <input class="input w-full" name="port" type="number" min="1" max="65535" step="1"
+                            value="{{ config.get('port', 5000) }}" />
+                        <p class="text-xs opacity-60">修改后需重启。</p>
+                    </fieldset>
+
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend text-sm font-medium">二维码缓存时间（秒）</legend>
+                        <input class="input w-full" name="cache_duration" type="number" min="0" step="1"
+                            value="{{ config.get('cache_duration', 60) }}" />
+                        <p class="text-xs opacity-60">0 表示每次都重新抓取。</p>
+                    </fieldset>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between border-t border-base-300 bg-base-200/40 px-5 py-3">
+                <button type="button" class="btn btn-ghost" data-prev="1">上一步</button>
+                <button type="button" class="btn btn-primary" data-next="3">保存并继续</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- 第 3 步：抓取方式 -->
+    <section data-panel="3" hidden>
+        <div class="overflow-hidden rounded-box border border-base-300 bg-base-100">
+            <div class="border-b border-base-300 px-5 py-4">
+                <h2 class="text-sm font-semibold">抓取方式</h2>
+                <p class="mt-1 text-xs opacity-60">独立窗口模式自动找二维码位置，否则按固定坐标点击。</p>
+            </div>
+
+            <div class="flex flex-col gap-5 px-5 py-5">
+                <label
+                    class="flex cursor-pointer items-start justify-between gap-4 rounded-field border border-base-300 bg-base-200/40 px-4 py-3">
+                    <span>
+                        <span class="block text-sm font-medium">独立窗口模式</span>
+                        <span class="mt-0.5 block text-xs opacity-60">自动识别二维码位置，不用填 P1 / P2。</span>
+                    </span>
+                    <input type="checkbox" name="standalone_mode" class="toggle toggle-primary toggle-sm mt-0.5"
+                        {% if config.get('standalone_mode') %}checked{% endif %} />
+                </label>
+
+                <div class="flex flex-col gap-3">
+                    <span class="section-label">点击坐标</span>
+                    <div class="grid gap-5 sm:grid-cols-2">
+                        <fieldset class="fieldset">
+                            <legend class="fieldset-legend text-sm font-medium">P1 坐标（X,Y）</legend>
+                            <input class="input w-full font-mono" name="p1" spellcheck="false"
+                                value="{{ config.get('p1', [1087, 799])|join(',') }}" data-standalone-dependent />
+                            <p class="text-xs opacity-60" data-coord-hint>生成二维码按钮的位置。</p>
+                        </fieldset>
+
+                        <fieldset class="fieldset">
+                            <legend class="fieldset-legend text-sm font-medium">P2 坐标（X,Y）</legend>
+                            <input class="input w-full font-mono" name="p2" spellcheck="false"
+                                value="{{ config.get('p2', [945, 682])|join(',') }}" data-standalone-dependent />
+                            <p class="text-xs opacity-60" data-coord-hint>二维码消息的位置。</p>
+                        </fieldset>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-3 border-t border-base-300 pt-5">
+                    <span class="section-label">解码参数</span>
+                    <div class="grid gap-5 sm:grid-cols-2">
+                        <fieldset class="fieldset">
+                            <legend class="fieldset-legend text-sm font-medium">解码超时（秒）</legend>
+                            <input class="input w-full" name="decode.time" type="number" min="1" max="3600" step="1"
+                                value="{{ config.get('decode', {}).get('time', 10) }}" />
+                        </fieldset>
+
+                        <fieldset class="fieldset">
+                            <legend class="fieldset-legend text-sm font-medium">重试次数</legend>
+                            <input class="input w-full" name="decode.retry_count" type="number" min="0" max="100"
+                                step="1" value="{{ config.get('decode', {}).get('retry_count', 10) }}" />
+                        </fieldset>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between border-t border-base-300 bg-base-200/40 px-5 py-3">
+                <button type="button" class="btn btn-ghost" data-prev="2">上一步</button>
+                <button type="button" class="btn btn-primary" data-next="4">保存并继续</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- 第 4 步：二维码皮肤 -->
+    <section data-panel="4" hidden>
+        <div class="overflow-hidden rounded-box border border-base-300 bg-base-100">
+            <div class="border-b border-base-300 px-5 py-4">
+                <h2 class="text-sm font-semibold">二维码皮肤</h2>
+                <p class="mt-1 text-xs opacity-60">没有皮肤图片时直接返回纯二维码。</p>
+            </div>
+
+            <div class="flex flex-col gap-5 px-5 py-5">
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend text-sm font-medium">皮肤格式</legend>
+                    <div class="join">
+                        <input class="join-item btn btn-sm" type="radio" name="skin_format" value="new"
+                            aria-label="新版皮肤" {% if config.get('skin_format', 'new') == 'new' %}checked{% endif %} />
+                        <input class="join-item btn btn-sm" type="radio" name="skin_format" value="old"
+                            aria-label="旧版皮肤" {% if config.get('skin_format') == 'old' %}checked{% endif %} />
+                        <input class="join-item btn btn-sm" type="radio" name="skin_format" value="custom"
+                            aria-label="自定义" {% if config.get('skin_format') == 'custom' %}checked{% endif %} />
+                    </div>
+                    <p class="text-xs opacity-60">选择「自定义」后可指定自己的皮肤图片与贴码位置。</p>
+                </fieldset>
+
+                <div class="flex flex-col gap-5 border-t border-base-300 pt-5" data-skin-custom hidden>
+                    <span class="section-label">自定义皮肤</span>
+
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend text-sm font-medium">皮肤图片路径</legend>
+                        <input class="input w-full font-mono" name="custom_skin_path" spellcheck="false"
+                            value="{{ config.get('custom_skin_path', './skin.png') }}" />
+                        <p class="text-xs opacity-60">PNG 图片，可用相对或绝对路径。</p>
+                    </fieldset>
+
+                    <div class="grid gap-5 sm:grid-cols-2">
+                        <fieldset class="fieldset">
+                            <legend class="fieldset-legend text-sm font-medium">二维码大小（像素）</legend>
+                            <input class="input w-full" name="custom_skin_qrcode_size" type="number" min="1" step="1"
+                                value="{{ config.get('custom_skin_qrcode_size', 576) }}" />
+                        </fieldset>
+
+                        <fieldset class="fieldset">
+                            <legend class="fieldset-legend text-sm font-medium">二维码坐标（X,Y）</legend>
+                            <input class="input w-full font-mono" name="custom_skin_qrcode_point" spellcheck="false"
+                                value="{{ config.get('custom_skin_qrcode_point', [106, 638])|join(',') }}" />
+                        </fieldset>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between border-t border-base-300 bg-base-200/40 px-5 py-3">
+                <button type="button" class="btn btn-ghost" data-prev="3">上一步</button>
+                <button type="button" class="btn btn-primary" data-next="5">保存并继续</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- 第 5 步：测试 -->
+    <section data-panel="5" hidden>
+        <div class="overflow-hidden rounded-box border border-base-300 bg-base-100">
+            <div class="border-b border-base-300 px-5 py-4">
+                <h2 class="text-sm font-semibold">测试与完成</h2>
+                <p class="mt-1 text-xs opacity-60">确认真机能取到码，再点完成配置。</p>
+            </div>
+
+            <div class="flex flex-col gap-4 px-5 py-5">
+                <div class="flex h-64 items-center justify-center overflow-hidden rounded-field border border-dashed border-base-300 bg-base-200/40 px-4">
+                    <div id="testPlaceholder" class="text-center text-xs leading-6 opacity-60">
+                        确认微信已登录，并停在「舞萌丨中二」公众号界面<br />
+                        点下方「测试二维码」会驱动微信抓一次码，约需 {{ config.get('decode', {}).get('time', 10) }} 秒
+                    </div>
+                    <img id="testImage" class="hidden max-h-56 rounded-field" alt="测试生成的二维码" />
+                </div>
+
+                <div id="testAlert" class="alert alert-error hidden text-sm"></div>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-2 border-t border-base-300 bg-base-200/40 px-5 py-3">
+                <button type="button" class="btn btn-ghost" data-prev="4">上一步</button>
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" id="testBtn" class="btn btn-outline">测试二维码</button>
+                    <button type="button" id="finishBtn" class="btn btn-primary">完成配置</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 完成态：二维码地址 -->
+    <section data-panel="done" hidden>
+        <div class="overflow-hidden rounded-box border border-base-300 bg-base-100">
+            <div class="border-b border-base-300 px-5 py-4">
+                <h2 class="text-sm font-semibold">二维码地址</h2>
+                <p class="mt-1 text-xs opacity-60">填到手表、翻盖手机等客户端的浏览器里即可取二维码。</p>
+            </div>
+
+            <div class="flex flex-col gap-4 px-5 py-5">
+                <div id="restartNotice" class="alert alert-warning hidden text-sm"></div>
+                <div id="addressList" class="flex flex-col gap-2"></div>
+            </div>
+
+            <div class="flex items-center justify-between gap-2 border-t border-base-300 bg-base-200/40 px-5 py-3">
+                <button type="button" id="reconfigBtn" class="btn btn-ghost">重新配置</button>
+                <a href="/about" class="btn btn-primary">关于与更新</a>
+            </div>
+        </div>
+    </section>
+</main>
+
+<!-- 测试确认对话框 -->
+<dialog id="testDialog" class="modal">
+    <div class="modal-box">
+        <h3 class="text-base font-semibold">开始测试二维码？</h3>
+        <p class="py-3 text-sm opacity-75">
+            会激活微信、模拟点击并截屏，期间鼠标会被占用，结束后关闭微信小程序进程。
+        </p>
+        <div class="modal-action">
+            <button type="button" id="testCancelBtn" class="btn btn-ghost">取消</button>
+            <button type="button" id="testConfirmBtn" class="btn btn-primary">开始测试</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<div id="toast" class="toast toast-end toast-bottom z-50 hidden">
+    <div id="toastBody" class="alert text-sm"></div>
+</div>
 {% endblock %}
 
 {% block script %}
-// HTML转义，防止外部数据（如 GitHub 更新日志）拼入 innerHTML 造成 XSS
-function escapeHtml(value) {
-    return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+const csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+const ajaxHeaders = {
+    'X-Requested-With': 'XMLHttpRequest',
+    'X-CSRFToken': csrfToken
+};
+const META = {{ (qr_meta or {})|tojson }};
+const STORE_KEY = 'qrmai-wizard';
+
+const panels = document.querySelectorAll('[data-panel]');
+const stepTabs = document.querySelectorAll('[data-step-tab]');
+const saveState = document.getElementById('saveState');
+
+const state = {
+    step: 1,
+    completed: false,
+    token: META.token || '',
+    route: META.route || '/qrmai',
+    host: META.host || '',
+    port: META.port || 5000,
+    dirty: new Set(),
+    busy: false
+};
+
+// ---------- 小工具 ----------
+
+function normalizeRoute(route) {
+    const value = String(route || '/qrmai').trim() || '/qrmai';
+    return value.startsWith('/') ? value : '/' + value;
 }
 
-// 实时显示鼠标坐标（rAF 节流，避免高频 mousemove 直接操作 DOM 触发重排）
-let pendingMouseX = 0;
-let pendingMouseY = 0;
-let mouseRafPending = false;
-
-document.addEventListener('mousemove', function (e) {
-    pendingMouseX = e.clientX;
-    pendingMouseY = e.clientY;
-    if (mouseRafPending) {
-        return;
-    }
-    mouseRafPending = true;
-    requestAnimationFrame(function () {
-        document.getElementById('mouseX').textContent = pendingMouseX;
-        document.getElementById('mouseY').textContent = pendingMouseY;
-        mouseRafPending = false;
-    });
-});
-
-// 表单字段校验：返回错误消息或 null
 function intInRange(value, min, max) {
-    const v = value.trim();
+    const v = String(value).trim();
     return /^\d+$/.test(v) && Number(v) >= min && Number(v) <= max;
 }
 
 function coordFormat(value) {
-    return /^\s*\d+\s*,\s*\d+\s*$/.test(value) ? null : '坐标格式应为 X,Y（例如 1087,799）';
+    return /^\s*-?\d+\s*,\s*-?\d+\s*$/.test(String(value)) ? null : '坐标格式应为 X,Y（例如 106,638）';
 }
 
-const fieldValidators = {
+const validators = {
     token: v => v.trim() ? null : '访问令牌不能为空',
-    qr_route: v => /^\/\S*$/.test(v) ? null : '二维码访问路径必须以 / 开头且不含空格',
-    host: v => v.trim() ? null : '服务器地址不能为空',
+    qr_route: v => /^\/\S*$/.test(v.trim()) ? null : '访问路径必须以 / 开头且不含空格',
+    host: v => v.trim() ? null : '监听地址不能为空',
     port: v => intInRange(v, 1, 65535) ? null : '端口需为 1-65535 的整数',
     cache_duration: v => intInRange(v, 0, 86400) ? null : '缓存时间需为 0-86400 的整数',
-    'decode.time': v => intInRange(v, 1, 3600) ? null : '超时时间需为 1-3600 的整数',
-    'decode.retry_count': v => intInRange(v, 0, 100) ? null : '重试次数需为 0-100 的整数',
     p1: coordFormat,
     p2: coordFormat,
+    'decode.time': v => intInRange(v, 1, 3600) ? null : '解码超时需为 1-3600 的整数',
+    'decode.retry_count': v => intInRange(v, 0, 100) ? null : '重试次数需为 0-100 的整数',
     custom_skin_qrcode_point: coordFormat,
     custom_skin_qrcode_size: v => intInRange(v, 1, 100000) ? null : '二维码大小需为正整数'
 };
 
-// 会话过期统一处理：提示并跳转登录页
+let toastTimer = null;
+
+function toast(message, tone) {
+    const box = document.getElementById('toast');
+    const body = document.getElementById('toastBody');
+    body.className = 'alert text-sm ' + (tone === 'error' ? 'alert-error' : tone === 'success' ? 'alert-success' : 'alert-info');
+    body.textContent = message;
+    box.classList.remove('hidden');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+        box.classList.add('hidden');
+    }, 3200);
+}
+
+function setSaveState(kind, text) {
+    let tone = 'opacity-60';
+    if (kind === 'error') {
+        tone = 'font-medium text-error';
+    } else if (kind === 'saved') {
+        tone = 'text-success';
+    } else if (kind === 'unsaved') {
+        tone = 'text-warning';
+    }
+    saveState.className = 'text-xs ' + tone;
+    saveState.textContent = text;
+}
+
+async function readErrorMessage(response) {
+    const text = await response.text();
+    try {
+        const data = JSON.parse(text);
+        return data.error || data.message || null;
+    } catch (e) {
+        return text && text.length < 200 ? text : null;
+    }
+}
+
 function redirectToLogin() {
-    dirtyForms.clear();
-    mdui.snackbar({
-        message: '登录已过期，请重新登录',
-        placement: 'top'
-    });
-    setTimeout(() => {
+    state.dirty.clear();
+    toast('登录已过期，请重新登录', 'error');
+    setTimeout(function () {
         window.location.href = '/login';
-    }, 1500);
+    }, 1200);
 }
 
-// 仅在选择“自定义皮肤”时显示二维码大小和坐标
-const skinFormatGroup = document.getElementById('skin_format');
-const customSkinExtra = document.getElementById('customSkinExtra');
+// ---------- 面板切换 ----------
 
-function syncCustomSkinFields() {
-    const format = skinFormatGroup.value || skinFormatGroup.getAttribute('value');
-    customSkinExtra.hidden = format !== 'custom';
+function showPanel(target) {
+    panels.forEach(function (panel) {
+        panel.hidden = panel.dataset.panel !== String(target);
+    });
+    updateStepsUI(target);
 }
 
-skinFormatGroup.addEventListener('change', syncCustomSkinFields);
-syncCustomSkinFields();
+function updateStepsUI(target) {
+    const names = ['访问与安全', '服务与网络', '抓取方式', '二维码皮肤', '测试与完成'];
+    const current = target === 'done' ? 6 : Number(target);
+    stepTabs.forEach(function (tab) {
+        const n = Number(tab.dataset.stepTab);
+        const active = !state.completed && n === current;
+        const done = state.completed || n < current;
+        tab.classList.toggle('is-active', active);
+        tab.classList.toggle('is-done', done && !active);
+    });
 
-// AJAX 请求标记，后端据此返回401而非重定向；同时携带CSRF令牌
-const ajaxHeaders = {
-    'X-Requested-With': 'XMLHttpRequest',
-    'X-CSRFToken': (document.querySelector('meta[name="csrf-token"]') || {}).content || ''
-};
+    const label = document.getElementById('mobileStepLabel');
+    const progress = document.getElementById('mobileStepProgress');
+    if (target === 'done') {
+        label.textContent = '配置完成';
+        progress.value = 5;
+    } else {
+        const n = Number(target);
+        label.textContent = '第 ' + n + ' 步 · ' + (names[n - 1] || '');
+        progress.value = n;
+    }
+}
 
-// 从响应中解析服务端错误消息
-function serverErrorMessage(response) {
-    return response.text().then(text => {
-        try {
-            const data = JSON.parse(text);
-            return data.error || data.message || null;
-        } catch (e) {
-            return null;
+function persist() {
+    try {
+        localStorage.setItem(STORE_KEY, JSON.stringify({
+            step: state.step,
+            completed: state.completed
+        }));
+    } catch (e) {
+        /* 隐私模式下忽略 */
+    }
+}
+
+// ---------- 保存 ----------
+
+function markDirty(panel) {
+    state.dirty.add(panel.dataset.panel);
+    setSaveState('unsaved', '有未保存修改');
+}
+
+function collect(panel) {
+    const data = new FormData();
+    panel.querySelectorAll('input[name], select[name], textarea[name]').forEach(function (el) {
+        if (el.disabled || el.closest('[hidden]')) {
+            return;
+        }
+        if (el.type === 'radio') {
+            if (el.checked) {
+                data.set(el.name, el.value);
+            }
+            return;
+        }
+        if (el.type === 'checkbox') {
+            data.set(el.name, el.checked ? 'true' : 'false');
+            return;
+        }
+        data.set(el.name, el.value);
+    });
+    return data;
+}
+
+function firstValidationError(data) {
+    for (const name of Object.keys(validators)) {
+        if (!data.has(name)) {
+            continue;
+        }
+        const message = validators[name](String(data.get(name)));
+        if (message) {
+            return { name: name, message: message };
+        }
+    }
+    return null;
+}
+
+async function savePanel(panel) {
+    const data = collect(panel);
+    const invalid = firstValidationError(data);
+    if (invalid) {
+        toast(invalid.message, 'error');
+        const field = panel.querySelector('[name="' + invalid.name + '"]');
+        if (field && field.focus) {
+            field.focus();
+        }
+        return false;
+    }
+
+    setSaveState('saving', '保存中…');
+    try {
+        const response = await fetch('/settings', {
+            method: 'POST',
+            headers: ajaxHeaders,
+            body: data
+        });
+
+        if (response.status === 401) {
+            redirectToLogin();
+            return false;
+        }
+
+        if (!response.ok) {
+            const message = await readErrorMessage(response);
+            toast(message || '保存失败', 'error');
+            setSaveState('error', '保存失败');
+            return false;
+        }
+
+        applySaved(panel.dataset.panel, data);
+        state.dirty.delete(panel.dataset.panel);
+        setSaveState('saved', '已保存');
+        return true;
+    } catch (e) {
+        console.error(e);
+        toast('网络错误，配置未保存', 'error');
+        setSaveState('error', '保存失败');
+        return false;
+    }
+}
+
+function applySaved(step, data) {
+    if (step === '1') {
+        state.token = String(data.get('token') || '');
+        state.route = String(data.get('qr_route') || '/qrmai');
+    } else if (step === '2') {
+        state.host = String(data.get('host') || '');
+        state.port = Number(data.get('port') || 5000);
+    }
+}
+
+async function saveDirty() {
+    for (const step of Array.from(state.dirty)) {
+        const panel = document.querySelector('[data-panel="' + step + '"]');
+        if (!panel) {
+            state.dirty.delete(step);
+            continue;
+        }
+        const ok = await savePanel(panel);
+        if (!ok) {
+            return false;
+        }
+    }
+    return true;
+}
+
+async function goto(target) {
+    if (state.busy) {
+        return;
+    }
+    state.busy = true;
+    try {
+        const ok = await saveDirty();
+        if (!ok) {
+            return;
+        }
+
+        if (target === 'done') {
+            state.completed = true;
+            showPanel('done');
+            renderDone();
+        } else {
+            state.completed = false;
+            state.step = Number(target);
+            showPanel(state.step);
+        }
+        persist();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    } finally {
+        state.busy = false;
+    }
+}
+
+// ---------- 条件显示 ----------
+
+function syncStandalone() {
+    const toggle = document.querySelector('[name="standalone_mode"]');
+    const enabled = !!(toggle && toggle.checked);
+    document.querySelectorAll('[data-standalone-dependent]').forEach(function (input) {
+        input.disabled = enabled;
+        const box = input.closest('fieldset');
+        if (box) {
+            box.classList.toggle('opacity-50', enabled);
+        }
+        const hint = box && box.querySelector('[data-coord-hint]');
+        if (hint) {
+            hint.textContent = enabled ? '已由独立窗口模式接管，无需填写。' : hint.dataset.coordHintDefault || hint.textContent;
         }
     });
 }
 
-// 有未保存修改时拦截离开页面
-const dirtyForms = new Set();
+function syncSkin() {
+    const checked = document.querySelector('[name="skin_format"]:checked');
+    const custom = !!(checked && checked.value === 'custom');
+    document.querySelectorAll('[data-skin-custom]').forEach(function (box) {
+        box.hidden = !custom;
+    });
+}
+
+// ---------- 完成态：地址 ----------
+
+function candidates() {
+    const route = normalizeRoute(state.route);
+    const query = '?token=' + encodeURIComponent(state.token);
+    const port = state.port || 5000;
+    const list = [];
+    const seen = new Set();
+
+    function add(label, url) {
+        if (!url || seen.has(url)) {
+            return;
+        }
+        seen.add(url);
+        list.push({ label: label, url: url });
+    }
+
+    add('当前访问地址', window.location.origin + route + query);
+    add('本机', 'http://localhost:' + port + route + query);
+    (META.lan || []).forEach(function (item) {
+        add('局域网 · ' + item.interface, 'http://' + item.ip + ':' + port + route + query);
+    });
+    return list;
+}
+
+function renderRestartNotice() {
+    const box = document.getElementById('restartNotice');
+    const changed = [];
+    if (normalizeRoute(state.route) !== normalizeRoute(META.runtime.qr_route)) {
+        changed.push('访问路径');
+    }
+    if (String(state.host) !== String(META.runtime.host)) {
+        changed.push('监听地址');
+    }
+    if (Number(state.port) !== Number(META.runtime.port)) {
+        changed.push('端口');
+    }
+    if (!changed.length) {
+        box.classList.add('hidden');
+        return;
+    }
+    box.classList.remove('hidden');
+    box.textContent = changed.join('、') + ' 已修改，需要重启程序后新地址才会生效。';
+}
+
+function renderAddresses() {
+    const list = document.getElementById('addressList');
+    list.textContent = '';
+
+    candidates().forEach(function (item) {
+        const row = document.createElement('div');
+        row.className = 'flex flex-col gap-2 rounded-field border border-base-300 bg-base-200/40 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between';
+
+        const info = document.createElement('div');
+        info.className = 'min-w-0';
+
+        const label = document.createElement('div');
+        label.className = 'text-xs opacity-55';
+        label.textContent = item.label;
+
+        const link = document.createElement('a');
+        link.className = 'address-url link link-primary font-mono text-xs';
+        link.href = item.url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = item.url;
+
+        info.append(label, link);
+
+        const actions = document.createElement('div');
+        actions.className = 'flex shrink-0 gap-1.5';
+
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'btn btn-sm';
+        copyBtn.textContent = '复制';
+        copyBtn.addEventListener('click', function () {
+            copyText(item.url);
+        });
+
+        const openLink = document.createElement('a');
+        openLink.className = 'btn btn-sm btn-ghost';
+        openLink.href = item.url;
+        openLink.target = '_blank';
+        openLink.rel = 'noopener';
+        openLink.textContent = '打开';
+
+        actions.append(copyBtn, openLink);
+        row.append(info, actions);
+        list.append(row);
+    });
+}
+
+function renderDone() {
+    renderRestartNotice();
+    renderAddresses();
+}
+
+function copyText(text) {
+    function done() {
+        toast('地址已复制', 'success');
+    }
+
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done).catch(function () {
+            fallbackCopy(text, done);
+        });
+    } else {
+        fallbackCopy(text, done);
+    }
+}
+
+function fallbackCopy(text, done) {
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.top = '-1000px';
+    area.style.opacity = '0';
+    document.body.append(area);
+    area.select();
+    try {
+        document.execCommand('copy');
+        done();
+    } catch (e) {
+        toast('复制失败，请手动选中地址复制', 'error');
+    }
+    area.remove();
+}
+
+// ---------- 测试二维码 ----------
+
+let testObjectUrl = null;
+
+async function runTest() {
+    const testBtn = document.getElementById('testBtn');
+    const testImage = document.getElementById('testImage');
+    const testPlaceholder = document.getElementById('testPlaceholder');
+    const testAlert = document.getElementById('testAlert');
+
+    testBtn.disabled = true;
+    testBtn.classList.add('btn-disabled');
+    testBtn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> 抓取中…';
+    testAlert.classList.add('hidden');
+    testImage.classList.add('hidden');
+    testPlaceholder.classList.remove('hidden');
+    testPlaceholder.textContent = '正在激活微信并抓取二维码，大约需要 ' + (META.decode_time || 10) + ' 秒…';
+
+    const controller = new AbortController();
+    const timer = setTimeout(function () {
+        controller.abort();
+    }, 120000);
+
+    try {
+        const response = await fetch('/test_qr', {
+            method: 'POST',
+            headers: ajaxHeaders,
+            signal: controller.signal
+        });
+
+        if (response.status === 401) {
+            redirectToLogin();
+            return;
+        }
+
+        if (!response.ok) {
+            const message = await readErrorMessage(response);
+            throw new Error(message || '测试失败');
+        }
+
+        const blob = await response.blob();
+        if (testObjectUrl) {
+            URL.revokeObjectURL(testObjectUrl);
+        }
+        testObjectUrl = URL.createObjectURL(blob);
+        testImage.src = testObjectUrl;
+        testImage.classList.remove('hidden');
+        testPlaceholder.classList.add('hidden');
+        toast('测试完成，上面是刚抓到的二维码', 'success');
+    } catch (e) {
+        console.error(e);
+        testPlaceholder.textContent = '测试失败，可以稍后重试';
+        testAlert.textContent = e.name === 'AbortError' ? '等待超时，请检查微信是否正常运行' : e.message;
+        testAlert.classList.remove('hidden');
+    } finally {
+        clearTimeout(timer);
+        testBtn.disabled = false;
+        testBtn.classList.remove('btn-disabled');
+        testBtn.textContent = '重新测试';
+    }
+}
+
+// ---------- 事件绑定 ----------
+
+// 记录坐标提示的原文，供独立模式切换时还原
+document.querySelectorAll('[data-coord-hint]').forEach(function (hint) {
+    hint.dataset.coordHintDefault = hint.textContent;
+});
+
+panels.forEach(function (panel) {
+    panel.addEventListener('input', function () {
+        markDirty(panel);
+    });
+    panel.addEventListener('change', function () {
+        markDirty(panel);
+        if (panel.dataset.panel === '3') {
+            syncStandalone();
+        }
+        if (panel.dataset.panel === '4') {
+            syncSkin();
+        }
+    });
+});
+
+document.querySelectorAll('[data-next]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        goto(btn.dataset.next);
+    });
+});
+
+document.querySelectorAll('[data-prev]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        goto(btn.dataset.prev);
+    });
+});
+
+stepTabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+        goto(Number(tab.dataset.stepTab));
+    });
+});
+
+document.getElementById('finishBtn').addEventListener('click', function () {
+    goto('done');
+});
+
+document.getElementById('reconfigBtn').addEventListener('click', function () {
+    goto(1);
+});
+
+document.getElementById('testBtn').addEventListener('click', function () {
+    document.getElementById('testDialog').showModal();
+});
+
+document.getElementById('testCancelBtn').addEventListener('click', function () {
+    document.getElementById('testDialog').close();
+});
+
+document.getElementById('testConfirmBtn').addEventListener('click', function () {
+    document.getElementById('testDialog').close();
+    runTest();
+});
 
 window.addEventListener('beforeunload', function (e) {
-    if (dirtyForms.size > 0) {
+    if (state.dirty.size > 0) {
         e.preventDefault();
         e.returnValue = '';
     }
 });
 
-// 为所有表单添加提交事件监听器
-document.querySelectorAll('.setting-form').forEach(form => {
-    form.addEventListener('input', () => dirtyForms.add(form));
-    form.addEventListener('change', () => dirtyForms.add(form));
+// ---------- 启动 ----------
 
-    form.addEventListener('submit', function (e) {
-        e.preventDefault();
+(function boot() {
+    syncStandalone();
+    syncSkin();
 
-        // 创建FormData对象并发送POST请求
-        const formData = new FormData(this);
+    let saved = null;
+    try {
+        saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+    } catch (e) {
+        saved = null;
+    }
 
-        // 提交前校验字段
-        for (const [name, validator] of Object.entries(fieldValidators)) {
-            if (!formData.has(name)) {
-                continue;
-            }
-            const error = validator(String(formData.get(name)));
-            if (error) {
-                mdui.snackbar({
-                    message: error,
-                    placement: 'top'
-                });
-                const field = this.querySelector('[name="' + name + '"]');
-                if (field && field.focus) {
-                    field.focus();
-                }
-                return;
-            }
-        }
-
-        fetch('/settings', {
-            method: 'POST',
-            headers: ajaxHeaders,
-            body: formData
-        })
-            .then(response => {
-                if (response.ok) {
-                    // 保存成功，清除脏状态
-                    dirtyForms.delete(this);
-                    // 显示成功消息
-                    mdui.snackbar({
-                        message: '设置已保存',
-                        placement: 'top'
-                    });
-                } else if (response.status === 401) {
-                    // 会话已过期
-                    redirectToLogin();
-                } else {
-                    // 显示服务端错误消息（如字段校验失败）
-                    return serverErrorMessage(response).then(message => {
-                        mdui.snackbar({
-                            message: message || '保存失败',
-                            placement: 'top'
-                        });
-                    });
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                mdui.snackbar({
-                    message: '网络错误',
-                    placement: 'top'
-                });
-            });
-    });
-});
-
-// 登出按钮事件
-document.getElementById('logoutBtn').addEventListener('click', function () {
-    dirtyForms.clear();
-    fetch('/logout', {
-        method: 'POST',
-        headers: ajaxHeaders
-    })
-        .then(() => {
-            window.location.href = '/login';
-        });
-});
-
-// 检查更新按钮事件
-document.getElementById('checkUpdateBtn').addEventListener('click', function () {
-    const btn = this;
-    const statusDiv = document.getElementById('updateStatus');
-
-    // 禁用按钮并显示加载状态
-    btn.disabled = true;
-    btn.loading = true;
-    statusDiv.style.display = 'none';
-
-    // 发送检查更新请求
-    fetch('/check_update', {
-        method: 'POST',
-        headers: ajaxHeaders
-    })
-        .then(response => {
-            if (response.status === 401) {
-                redirectToLogin();
-                return null;
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (!data) {
-                return;
-            }
-            if (data.error) {
-                // 显示错误信息
-                statusDiv.innerHTML = `<mdui-alert variant="error">${escapeHtml(data.message)}</mdui-alert>`;
-            } else if (data.has_update) {
-                // 显示更新信息
-                statusDiv.innerHTML = `
-                <mdui-alert variant="info">
-                    <div>发现新版本: ${escapeHtml(data.version)}</div>
-                    <div>更新名称: ${escapeHtml(data.name)}</div>
-                    <div>发布时间: ${escapeHtml(data.published_at)}</div>
-                    <div>更新内容: ${escapeHtml(data.body || '无')}</div>
-                </mdui-alert>
-            `;
-            } else {
-                // 显示已是最新版本
-                statusDiv.innerHTML = `<mdui-alert variant="success">${escapeHtml(data.message)}</mdui-alert>`;
-            }
-            statusDiv.style.display = 'block';
-        })
-        .catch(error => {
-            // 显示网络错误
-            statusDiv.innerHTML = `<mdui-alert variant="error">网络错误: ${escapeHtml(error.message)}</mdui-alert>`;
-            statusDiv.style.display = 'block';
-        })
-        .finally(() => {
-            // 恢复按钮状态
-            btn.disabled = false;
-            btn.loading = false;
-        });
-});
-
-// 手动更新按钮事件
-let restarting = false;
-
-// 等待程序下线（更新脚本正在替换文件）
-function waitForOffline(attempt) {
-    if (attempt > 30) {
-        // 没观测到下线，可能替换极快，直接转入在线检测
-        waitForOnline(0);
+    if (saved && saved.completed) {
+        state.completed = true;
+        showPanel('done');
+        renderDone();
         return;
     }
-    setTimeout(() => {
-        fetch('/login', { method: 'GET' })
-            .then(() => waitForOffline(attempt + 1))
-            .catch(() => waitForOnline(0));
-    }, 1000);
-}
 
-// 等待新版本程序重新上线
-function waitForOnline(attempt) {
-    if (attempt > 90) {
-        restarting = false;
-        document.getElementById('manualUpdateBtn').disabled = false;
-        document.getElementById('manualUpdateBtn').loading = false;
-        const div = document.getElementById('updateStatus');
-        div.innerHTML = '<mdui-alert variant="error">等待程序重启超时，请手动刷新页面。</mdui-alert>';
-        div.style.display = 'block';
-        return;
+    if (saved && Number.isInteger(saved.step) && saved.step >= 1 && saved.step <= 5) {
+        state.step = saved.step;
     }
-    setTimeout(() => {
-        fetch('/login', { method: 'GET' })
-            .then(resp => {
-                if (resp.ok) {
-                    window.location.href = '/login';
-                } else {
-                    waitForOnline(attempt + 1);
-                }
-            })
-            .catch(() => waitForOnline(attempt + 1));
-    }, 2000);
-}
-
-// 执行手动更新
-function runManualUpdate() {
-    const btn = document.getElementById('manualUpdateBtn');
-    const statusDiv = document.getElementById('updateStatus');
-
-    // 禁用按钮并显示加载状态
-    btn.disabled = true;
-    btn.loading = true;
-    statusDiv.style.display = 'none';
-
-    // 发送手动更新请求
-    fetch('/manual_update', {
-        method: 'POST',
-        headers: ajaxHeaders
-    })
-        .then(response => {
-            statusDiv.style.display = 'block';
-            if (response.status === 200) {
-                // 更新成功：等待程序下线再上线后跳转登录页
-                restarting = true;
-                statusDiv.innerHTML = '<mdui-alert variant="info">更新成功！程序正在重启，请稍候...</mdui-alert>';
-                waitForOffline(0);
-            } else if (response.status === 204) {
-                // 无更新可用
-                statusDiv.innerHTML = '<mdui-alert variant="info">当前已是最新版本，无需更新。</mdui-alert>';
-            } else if (response.status === 401) {
-                // 会话已过期
-                redirectToLogin();
-            } else {
-                // 其他错误（含500更新失败）
-                return response.json().catch(() => ({})).then(data => {
-                    throw new Error(data.error || data.message || '更新失败');
-                });
-            }
-        })
-        .catch(error => {
-            // 显示错误信息
-            statusDiv.innerHTML = `<mdui-alert variant="error">更新失败: ${escapeHtml(error.message)}</mdui-alert>`;
-            statusDiv.style.display = 'block';
-        })
-        .finally(() => {
-            // 恢复按钮状态（等待重启期间保持禁用）
-            if (!restarting) {
-                btn.disabled = false;
-                btn.loading = false;
-            }
-        });
-}
-
-document.getElementById('manualUpdateBtn').addEventListener('click', function () {
-    // 使用 MDUI 对话框替代原生 confirm，保持风格统一
-    mdui.confirm({
-        headline: '执行手动更新？',
-        description: '更新过程中程序可能会重启。',
-        confirmText: '更新',
-        cancelText: '取消',
-        onConfirm: runManualUpdate
-    });
-});
+    showPanel(state.step);
+})();
 {% endblock %}

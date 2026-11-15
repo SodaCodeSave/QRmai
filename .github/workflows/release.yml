@@ -23,6 +23,14 @@ jobs:
       with:
         python-version: '3.9'
 
+    # ===== 前端样式（DaisyUI + Tailwind）需要 Node.js =====
+    # 打包脚本 build_exe.py 会调用 npm 构建 static/vendor/daisyui/app.css
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
     # ===== 从 MSYS2 获取 DLL =====
     # 注意: 必须用 UCRT64 而不是 MINGW64。
     #   1) msys2 已弃用 mingw64 环境（setup-msys2 会报警告）

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" class="mdui-theme-auto">
+<html lang="zh-CN" data-theme="light">
 
 <head>
     <meta charset="UTF-8">
@@ -7,16 +7,73 @@
     <title>{% block title %}QRMai{% endblock %}</title>
     <meta name="csrf-token" content="{{ session.get('csrf_token', '') }}" />
     <link rel="icon" href="{{ url_for('favicon') }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/mdui/mdui.css') }}" />
-    <script src="{{ url_for('static', filename='vendor/mdui/mdui.global.js') }}"></script>
+    <script>
+        // 首帧前应用主题，避免浅色闪一下
+        (function () {
+            try {
+                var saved = localStorage.getItem('qrmai-theme');
+                var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.setAttribute('data-theme', saved || (prefersDark ? 'dark' : 'light'));
+            } catch (e) {
+                /* localStorage 不可用时保持默认浅色 */
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/daisyui/app.css') }}" />
     <style>
         {% block style %}{% endblock %}
     </style>
 </head>
 
-<body>
+<body class="min-h-screen bg-base-200 text-base-content">
+    {% block chrome %}
+    <header class="sticky top-0 z-30 border-b border-base-300 bg-base-100">
+        <div class="mx-auto flex h-14 w-full max-w-4xl items-center justify-between gap-4 px-4 sm:px-6">
+            <a href="/settings" class="flex items-center gap-2 rounded-field pr-1">
+                <img src="{{ url_for('favicon') }}" alt="" class="h-6 w-6 rounded-[0.25rem]" />
+                <span class="text-base font-semibold tracking-tight">QRMai</span>
+            </a>
+            <nav class="flex items-center gap-1">
+                <a href="/settings"
+                    class="btn btn-ghost btn-sm {% if request.path == '/settings' %}btn-active font-medium{% else %}opacity-70{% endif %}">配置</a>
+                <a href="/about"
+                    class="btn btn-ghost btn-sm {% if request.path == '/about' %}btn-active font-medium{% else %}opacity-70{% endif %}">关于</a>
+                <span class="mx-1 h-4 w-px bg-base-300" aria-hidden="true"></span>
+                <button type="button" class="btn btn-ghost btn-sm opacity-70" data-theme-toggle>深色</button>
+            </nav>
+        </div>
+    </header>
+    {% endblock %}
+
     {% block body %}{% endblock %}
 
+    <script>
+        (function () {
+            var root = document.documentElement;
+
+            function syncLabels() {
+                var next = root.getAttribute('data-theme') === 'dark' ? '浅色' : '深色';
+                document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
+                    btn.textContent = next;
+                });
+            }
+
+            document.querySelectorAll('[data-theme-toggle]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+                    root.setAttribute('data-theme', next);
+                    try {
+                        localStorage.setItem('qrmai-theme', next);
+                    } catch (e) {
+                        /* 忽略隐私模式下的写入失败 */
+                    }
+                    syncLabels();
+                });
+            });
+
+            syncLabels();
+        })();
+    </script>
     <script>
         {% block script %}{% endblock %}
     </script>

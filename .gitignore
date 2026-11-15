@@ -164,6 +164,8 @@ packaging/libiconv.dll
 packaging/libzbar-64.dll
 config.json
 
-# 前端静态资源（由 packaging/fetch_mdui.py 在构建时自动下载）
+# 前端静态资源（由 packaging/build_css.py 在构建时自动生成）
 static/vendor/
+# 前端依赖
+node_modules/
 .playwright-mcp/

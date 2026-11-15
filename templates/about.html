@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}QRmai 关于{% endblock %}
+
+{% block body %}
+<main class="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
+    <div class="mb-6">
+        <h1 class="text-lg font-semibold tracking-tight">关于</h1>
+        <p class="mt-1 text-xs opacity-60">动态截取舞萌DX、中二节奏二维码并返还给客户端。</p>
+    </div>
+
+    <div class="flex flex-col gap-4">
+        <!-- 版本信息 -->
+        <div class="overflow-hidden rounded-box border border-base-300 bg-base-100">
+            <div class="border-b border-base-300 px-5 py-4">
+                <h2 class="text-sm font-semibold">版本信息</h2>
+            </div>
+            <dl class="divide-y divide-base-300 text-sm">
+                <div class="flex items-center justify-between gap-4 px-5 py-3">
+                    <dt class="text-xs opacity-60">当前版本</dt>
+                    <dd class="font-mono text-xs">{{ version }}</dd>
+                </div>
+                <div class="flex items-center justify-between gap-4 px-5 py-3">
+                    <dt class="text-xs opacity-60">源代码</dt>
+                    <dd><a class="link link-primary text-xs" href="https://github.com/SodaCodeSave/QRmai" target="_blank"
+                            rel="noopener">GitHub 仓库</a></dd>
+                </div>
+                <div class="flex items-center justify-between gap-4 px-5 py-3">
+                    <dt class="text-xs opacity-60">交流反馈</dt>
+                    <dd><a class="link link-primary text-xs" href="https://qm.qq.com/q/ogml35lzwG" target="_blank"
+                            rel="noopener">QQ 交流群</a></dd>
+                </div>
+            </dl>
+        </div>
+
+        <!-- 版本更新 -->
+        <div class="overflow-hidden rounded-box border border-base-300 bg-base-100">
+            <div class="border-b border-base-300 px-5 py-4">
+                <h2 class="text-sm font-semibold">版本更新</h2>
+                <p class="mt-1 text-xs opacity-60">手动更新会下载新版本、替换程序并自动重启。</p>
+            </div>
+            <div class="flex flex-col gap-4 px-5 py-5">
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" id="checkUpdateBtn" class="btn btn-outline">检查更新</button>
+                    <button type="button" id="manualUpdateBtn" class="btn btn-primary">手动更新</button>
+                </div>
+                <div id="updateStatus" class="alert alert-info hidden whitespace-pre-line text-sm"></div>
+            </div>
+        </div>
+
+        <!-- 会话 -->
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-box border border-base-300 bg-base-100 px-5 py-3.5">
+            <div>
+                <div class="text-sm font-medium">退出登录</div>
+                <div class="mt-0.5 text-xs opacity-60">清除当前会话，下次访问需要重新输入令牌。</div>
+            </div>
+            <button type="button" id="logoutBtn" class="btn btn-error btn-outline btn-sm">登出</button>
+        </div>
+    </div>
+</main>
+
+<dialog id="updateDialog" class="modal">
+    <div class="modal-box">
+        <h3 class="text-base font-semibold">执行手动更新？</h3>
+        <p class="py-3 text-sm opacity-75">更新过程中程序会重启，页面会短暂无法访问。</p>
+        <div class="modal-action">
+            <button type="button" id="updateCancelBtn" class="btn btn-ghost">取消</button>
+            <button type="button" id="updateConfirmBtn" class="btn btn-primary">更新</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endblock %}
+
+{% block script %}
+const csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+const ajaxHeaders = {
+    'X-Requested-With': 'XMLHttpRequest',
+    'X-CSRFToken': csrfToken
+};
+
+const statusBox = document.getElementById('updateStatus');
+const updateDialog = document.getElementById('updateDialog');
+
+function setStatus(message, tone) {
+    statusBox.className = 'alert whitespace-pre-line text-sm ' + (
+        tone === 'error' ? 'alert-error' :
+            tone === 'success' ? 'alert-success' :
+                tone === 'warning' ? 'alert-warning' : 'alert-info'
+    );
+    statusBox.textContent = message;
+    statusBox.classList.remove('hidden');
+}
+
+function hideStatus() {
+    statusBox.classList.add('hidden');
+}
+
+function redirectToLogin() {
+    setStatus('登录已过期，正在跳转到登录页…', 'warning');
+    setTimeout(function () {
+        window.location.href = '/login';
+    }, 1200);
+}
+
+// ---------- 检查更新 ----------
+
+document.getElementById('checkUpdateBtn').addEventListener('click', async function () {
+    const btn = this;
+    btn.disabled = true;
+    btn.classList.add('btn-disabled');
+    hideStatus();
+    btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> 检查中';
+
+    try {
+        const response = await fetch('/check_update', { method: 'POST', headers: ajaxHeaders });
+        if (response.status === 401) {
+            redirectToLogin();
+            return;
+        }
+        const data = await response.json();
+
+        if (data.error) {
+            setStatus(data.message || '检查更新失败', 'error');
+        } else if (data.has_update) {
+            const lines = [
+                '发现新版本：' + data.version,
+                '更新名称：' + data.name,
+                '发布时间：' + data.published_at,
+                '更新内容：' + (data.body || '无')
+            ];
+            setStatus(lines.join('\n'), 'info');
+        } else {
+            setStatus(data.message || '当前已是最新版本', 'success');
+        }
+    } catch (error) {
+        setStatus('网络错误：' + error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.classList.remove('btn-disabled');
+        btn.textContent = '检查更新';
+    }
+});
+
+// ---------- 手动更新 ----------
+
+const manualUpdateBtn = document.getElementById('manualUpdateBtn');
+let restarting = false;
+
+function waitForOffline(attempt) {
+    if (attempt > 30) {
+        waitForOnline(0);
+        return;
+    }
+    setTimeout(function () {
+        fetch('/login', { method: 'GET' })
+            .then(function () { waitForOffline(attempt + 1); })
+            .catch(function () { waitForOnline(0); });
+    }, 1000);
+}
+
+function waitForOnline(attempt) {
+    if (attempt > 90) {
+        restarting = false;
+        manualUpdateBtn.disabled = false;
+        manualUpdateBtn.classList.remove('btn-disabled');
+        setStatus('等待程序重启超时，请手动刷新页面。', 'error');
+        return;
+    }
+    setTimeout(function () {
+        fetch('/login', { method: 'GET' })
+            .then(function (response) {
+                if (response.ok) {
+                    window.location.href = '/login';
+                } else {
+                    waitForOnline(attempt + 1);
+                }
+            })
+            .catch(function () { waitForOnline(attempt + 1); });
+    }, 2000);
+}
+
+async function runManualUpdate() {
+    manualUpdateBtn.disabled = true;
+    manualUpdateBtn.classList.add('btn-disabled');
+    manualUpdateBtn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> 更新中';
+    hideStatus();
+
+    try {
+        const response = await fetch('/manual_update', { method: 'POST', headers: ajaxHeaders });
+
+        if (response.status === 200) {
+            restarting = true;
+            setStatus('更新成功，程序正在重启，请稍候…', 'info');
+            waitForOffline(0);
+            return;
+        }
+        if (response.status === 204) {
+            setStatus('当前已是最新版本，无需更新。', 'info');
+        } else if (response.status === 401) {
+            redirectToLogin();
+        } else {
+            let message = '更新失败';
+            try {
+                const data = await response.json();
+                message = data.error || data.message || message;
+            } catch (e) {
+                /* 非 JSON 响应，沿用默认提示 */
+            }
+            setStatus('更新失败：' + message, 'error');
+        }
+    } catch (error) {
+        setStatus('更新失败：' + error.message, 'error');
+    } finally {
+        if (!restarting) {
+            manualUpdateBtn.disabled = false;
+            manualUpdateBtn.classList.remove('btn-disabled');
+            manualUpdateBtn.textContent = '手动更新';
+        }
+    }
+}
+
+manualUpdateBtn.addEventListener('click', function () {
+    updateDialog.showModal();
+});
+
+document.getElementById('updateCancelBtn').addEventListener('click', function () {
+    updateDialog.close();
+});
+
+document.getElementById('updateConfirmBtn').addEventListener('click', function () {
+    updateDialog.close();
+    runManualUpdate();
+});
+
+// ---------- 登出 ----------
+
+document.getElementById('logoutBtn').addEventListener('click', function () {
+    fetch('/logout', { method: 'POST', headers: ajaxHeaders })
+        .then(function () {
+            window.location.href = '/login';
+        })
+        .catch(function () {
+            setStatus('登出失败，请刷新页面重试', 'error');
+        });
+});
+{% endblock %}

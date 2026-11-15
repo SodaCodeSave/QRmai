@@ -1,0 +1,15 @@
+{
+  "name": "qrmai-admin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "QRmai 管理后台前端样式（DaisyUI + Tailwind CSS）",
+  "scripts": {
+    "build:css": "tailwindcss -i ./assets/app.css -o ./static/vendor/daisyui/app.css --minify",
+    "watch:css": "tailwindcss -i ./assets/app.css -o ./static/vendor/daisyui/app.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.14",
+    "daisyui": "^5.8.1",
+    "tailwindcss": "^4.1.14"
+  }
+}

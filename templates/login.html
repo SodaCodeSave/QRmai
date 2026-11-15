@@ -2,100 +2,77 @@
 
 {% block title %}QRMai 登录{% endblock %}
 
+{% block chrome %}{% endblock %}
+
 {% block style %}
 body {
     display: flex;
-    justify-content: center;
     align-items: center;
-    min-height: 100vh;
-    margin: 0;
-}
-
-.login-card {
-    width: 100%;
-    max-width: 400px;
+    justify-content: center;
     padding: 24px;
-}
-
-.logo {
-    text-align: center;
-    margin-bottom: 24px;
-}
-
-.logo h1 {
-    margin: 0;
-    font-size: 24px;
-}
-
-.form-group {
-    margin-bottom: 16px;
-}
-
-.login-submit {
-    width: 100%;
-}
-
-.error-message {
-    color: #f44336;
-    font-size: 14px;
-    margin-top: 8px;
-    display: none;
-}
-
-.default-token-hint {
-    margin-top: 12px;
-    font-size: 13px;
-    color: #666;
-}
-
-@media (prefers-color-scheme: dark) {
-    .default-token-hint {
-        color: #b7b7b7;
-    }
 }
 {% endblock %}
 
 {% block body %}
-<mdui-card class="login-card">
-    <div class="logo">
-        <h1>QRMai 管理面板</h1>
+<div class="w-full max-w-sm">
+    <div class="mb-4 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+            <img src="{{ url_for('favicon') }}" alt="" class="h-7 w-7 rounded-[0.25rem]" />
+            <span class="text-base font-semibold tracking-tight">QRMai</span>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm opacity-70" data-theme-toggle>深色</button>
     </div>
 
-    <form id="loginForm">
-        <div class="form-group">
-            <mdui-text-field id="tokenInput" label="访问令牌" type="password" helper="请输入您的访问令牌"
-                autocomplete="current-password" required></mdui-text-field>
+    <div class="overflow-hidden rounded-box border border-base-300 bg-base-100">
+        <div class="border-b border-base-300 px-5 py-4">
+            <h1 class="text-sm font-semibold">登录管理后台</h1>
+            <p class="mt-1 text-xs opacity-60">输入配置里的访问令牌以继续。</p>
         </div>
 
-        <div id="errorMessage" class="error-message" role="alert">
-            令牌无效，请重新输入
-        </div>
+        <form id="loginForm" class="flex flex-col gap-4 px-5 py-5">
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend text-sm font-medium">访问令牌</legend>
+                <input id="tokenInput" type="password" class="input w-full" placeholder="qrmai"
+                    autocomplete="current-password" required />
+            </fieldset>
 
-        <mdui-button type="submit" variant="filled" class="login-submit">登录</mdui-button>
+            <div id="errorMessage" class="alert alert-error hidden text-sm" role="alert"></div>
 
-        <div class="default-token-hint">
-            默认令牌：qrmai
-        </div>
-    </form>
-</mdui-card>
+            <button type="submit" id="loginBtn" class="btn btn-primary w-full">登录</button>
+        </form>
+    </div>
+
+    <p class="mt-4 text-center text-xs opacity-50">令牌可在程序目录的 config.json 中查看</p>
+</div>
 {% endblock %}
 
 {% block script %}
 const csrfToken = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+const loginForm = document.getElementById('loginForm');
+const tokenInput = document.getElementById('tokenInput');
+const errorMessage = document.getElementById('errorMessage');
+const loginBtn = document.getElementById('loginBtn');
 
-document.getElementById('loginForm').addEventListener('submit', function (e) {
+function showError(message) {
+    errorMessage.textContent = message;
+    errorMessage.classList.remove('hidden');
+}
+
+loginForm.addEventListener('submit', function (e) {
     e.preventDefault();
+    errorMessage.classList.add('hidden');
 
-    const token = document.getElementById('tokenInput').value;
-    const errorMessage = document.getElementById('errorMessage');
-    const btn = this.querySelector('mdui-button[type="submit"]');
+    const token = tokenInput.value;
+    if (!token.trim()) {
+        showError('请输入访问令牌');
+        tokenInput.focus();
+        return;
+    }
 
-    // 进入加载状态，避免重复提交
-    errorMessage.style.display = 'none';
-    btn.loading = true;
-    btn.disabled = true;
+    loginBtn.disabled = true;
+    loginBtn.classList.add('btn-disabled');
+    loginBtn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> 登录中';
 
-    // 发送请求验证token
     fetch('/login', {
         method: 'POST',
         headers: {
@@ -107,28 +84,21 @@ document.getElementById('loginForm').addEventListener('submit', function (e) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // 登录成功，跳转到设置页面
-                errorMessage.textContent = '登录成功';
-                errorMessage.style.color = '#4caf50';
-                errorMessage.style.display = 'block';
                 window.location.href = '/settings';
-            } else {
-                // 令牌错误或被限流
-                errorMessage.textContent = data.error || '令牌无效，请重新输入';
-                errorMessage.style.color = '';
-                errorMessage.style.display = 'block';
+                return;
             }
+            showError(data.error || '令牌无效，请重新输入');
+            tokenInput.focus();
+            tokenInput.select();
         })
         .catch(error => {
-            // 网络错误与令牌错误区分开
             console.error('Error:', error);
-            errorMessage.textContent = '网络错误，请稍后重试';
-            errorMessage.style.color = '';
-            errorMessage.style.display = 'block';
+            showError('网络错误，请稍后重试');
         })
         .finally(() => {
-            btn.loading = false;
-            btn.disabled = false;
+            loginBtn.disabled = false;
+            loginBtn.classList.remove('btn-disabled');
+            loginBtn.textContent = '登录';
         });
 });
 {% endblock %}

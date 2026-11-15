@@ -1,0 +1,159 @@
+/* QRmai 管理后台样式入口：Tailwind CSS + DaisyUI
+ *
+ * 构建：npm run build:css
+ * 产物：static/vendor/daisyui/app.css（由打包脚本 / 手动构建生成，不提交到仓库）
+ *
+ * 视觉取向：极简扁平 —— 不加阴影、不用装饰渐变，层次只靠留白、间距和底色差。
+ * 配色：主色标准蓝 #2563eb，底色 slate 冷灰，卡片纯白（深色模式给一套冷调深蓝灰）。
+ */
+
+@import "tailwindcss";
+
+@source "../templates";
+
+/* 只使用下面自定义的两套主题，避免内置主题的重复 token 覆盖我们的取值 */
+@plugin "daisyui" {
+  themes: false;
+}
+
+/* ---------- 浅色主题 ---------- */
+
+@plugin "daisyui/theme" {
+  name: "light";
+  default: true;
+  prefersdark: false;
+  color-scheme: light;
+
+  /* 底色三阶：卡片纯白 → 页面 slate-100 → 描边 slate-200，纯扁平下靠这三档分层 */
+  --color-base-100: oklch(100% 0 0);
+  --color-base-200: oklch(96.8% 0.007 247.896);
+  --color-base-300: oklch(92.9% 0.013 255.508);
+  --color-base-content: oklch(27.9% 0.037 260.031);
+
+  /* 主色：标准蓝 #2563eb */
+  --color-primary: oklch(54.6% 0.245 262.881);
+  --color-primary-content: oklch(100% 0 0);
+
+  /* 次要色统一收进蓝色系，避免默认洋红与蓝色主色打架 */
+  --color-secondary: oklch(58% 0.14 250);
+  --color-secondary-content: oklch(100% 0 0);
+  --color-accent: oklch(70% 0.12 245);
+  --color-accent-content: oklch(24% 0.06 258);
+
+  --color-neutral: oklch(24% 0.03 258);
+  --color-neutral-content: oklch(96% 0.008 255);
+
+  /* 语义色保持可辨识度，只把 info 拉到蓝色系 */
+  --color-info: oklch(72% 0.13 250);
+  --color-info-content: oklch(26% 0.07 258);
+  --color-success: oklch(72% 0.15 163.223);
+  --color-success-content: oklch(30% 0.07 168.94);
+  --color-warning: oklch(80% 0.16 84.429);
+  --color-warning-content: oklch(32% 0.09 45.904);
+  --color-error: oklch(63% 0.2 13.428);
+  --color-error-content: oklch(100% 0 0);
+
+  --radius-selector: 0.5rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.625rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+
+  /* 纯扁平：把 DaisyUI 的阴影强度归零 */
+  --depth: 0;
+  --noise: 0;
+}
+
+/* ---------- 深色主题 ---------- */
+
+@plugin "daisyui/theme" {
+  name: "dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: dark;
+
+  --color-base-100: oklch(26% 0.018 255);
+  --color-base-200: oklch(22.5% 0.016 255);
+  /* 深色下描边比卡片亮一档，纯扁平时靠它把边界撑开 */
+  --color-base-300: oklch(33% 0.02 255);
+  --color-base-content: oklch(96% 0.008 255);
+
+  --color-primary: oklch(62% 0.19 259);
+  --color-primary-content: oklch(99% 0.005 250);
+
+  --color-secondary: oklch(66% 0.12 250);
+  --color-secondary-content: oklch(18% 0.05 258);
+  --color-accent: oklch(72% 0.11 245);
+  --color-accent-content: oklch(20% 0.05 258);
+
+  --color-neutral: oklch(34% 0.02 255);
+  --color-neutral-content: oklch(96% 0.008 255);
+
+  --color-info: oklch(74% 0.12 250);
+  --color-info-content: oklch(20% 0.06 258);
+  --color-success: oklch(76% 0.15 163.223);
+  --color-success-content: oklch(22% 0.06 168.94);
+  --color-warning: oklch(82% 0.15 84.429);
+  --color-warning-content: oklch(24% 0.08 45.904);
+  --color-error: oklch(68% 0.18 13.428);
+  --color-error-content: oklch(100% 0 0);
+
+  --radius-selector: 0.5rem;
+  --radius-field: 0.375rem;
+  --radius-box: 0.625rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+
+  --depth: 0;
+  --noise: 0;
+}
+
+/* ---------- 组件级样式 ---------- */
+
+@layer components {
+  /* 步骤导航里的单个标签（状态由 JS 切换 is-active / is-done） */
+  .step-tab {
+    display: block;
+    width: 100%;
+    cursor: pointer;
+    border-radius: var(--radius-field);
+    padding: 0.5rem 0.375rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.5;
+    text-align: center;
+    color: color-mix(in oklab, var(--color-base-content) 55%, transparent);
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  .step-tab:hover {
+    background-color: var(--color-base-200);
+    color: var(--color-base-content);
+  }
+
+  .step-tab.is-done {
+    background-color: var(--color-base-200);
+    color: var(--color-base-content);
+  }
+
+  .step-tab.is-active {
+    background-color: var(--color-primary);
+    color: var(--color-primary-content);
+    font-weight: 600;
+  }
+
+  /* 卡片内的分区小标题 */
+  .section-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: color-mix(in oklab, var(--color-base-content) 50%, transparent);
+  }
+}
+
+/* 地址框里的长 URL 允许在任意位置断行 */
+.address-url {
+  word-break: break-all;
+}

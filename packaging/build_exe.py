@@ -55,13 +55,13 @@ def build_executable():
         print(f"  - {dll.name} ({size_kb:.1f} KB)")
     # ===== DLL 检测结束 =====
 
-    # ===== 下载 MDUI 前端静态资源（自托管，替代 unpkg CDN）=====
-    import fetch_mdui
+    # ===== 构建 DaisyUI + Tailwind 样式（需要 Node.js）=====
+    import build_css
 
-    if not fetch_mdui.download(project_root):
-        print("Error: Failed to prepare MDUI static assets.")
+    if not build_css.build(project_root):
+        print("Error: Failed to build DaisyUI styles.")
         return False
-    # ===== MDUI 资源准备结束 =====
+    # ===== 样式构建结束 =====
 
     # Build PyInstaller command
     cmd = [
