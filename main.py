@@ -22,7 +22,6 @@ from flask import (
 
 # 外部库导入
 import psutil  # 进程管理库
-import subprocess  # 用于运行系统命令
 
 import standalone  # 独立窗口模式下自动识别按钮与二维码位置
 
@@ -234,39 +233,6 @@ def read_version():
     if version and not version.lower().startswith("v"):
         version = "v" + version
     return version or "unknown"
-
-
-def kill_wechat_process():
-    """
-    杀死WeChatAppEx.exe进程
-    """
-    try:
-        # 方法1: 使用psutil查找并终止进程
-        killed_any = False
-        for proc in psutil.process_iter(["pid", "name"]):
-            if proc.info["name"] and "WeChatAppEx.exe" in proc.info["name"]:
-                proc.kill()  # 终止进程
-                logger.info(f"已杀死微信进程，PID: {proc.info['pid']}")
-                killed_any = True
-
-        if not killed_any:
-            logger.info("未找到可杀死的WeChatAppEx.exe进程")
-    except psutil.NoSuchProcess:
-        logger.info("微信进程已终止")
-    except psutil.AccessDenied:
-        logger.warning("尝试杀死微信进程时访问被拒绝 - 可能需要提升权限")
-    except Exception as e:
-        logger.error(f"杀死微信进程时出错: {e}")
-        # 备用方法: 尝试使用taskkill命令
-        try:
-            subprocess.run(
-                ["taskkill", "/f", "/im", "WeChatAppEx.exe"],
-                creationflags=subprocess.CREATE_NO_WINDOW,
-                check=True,
-            )
-            logger.info("使用taskkill命令杀死微信进程")
-        except subprocess.CalledProcessError:
-            logger.warning("使用taskkill命令杀死微信进程失败")
 
 
 # 读取配置文件
@@ -556,21 +522,27 @@ def qrmai_action():
             timeout=config["decode"]["time"],
         )
         if qr_data:
-            img_io = build_qr_image(qr_data)
-            kill_wechat_process()
-            return img_io
+            return build_qr_image(qr_data)
         if window_found:
             logger.warning("独立窗口二维码识别超时")
-            kill_wechat_process()
             return _error_image("Unable\nto load\nQRCode\n(Timeout)")
         logger.warning("未找到「舞萌 | 中二」独立窗口，回退到 p1/p2 坐标模式")
 
+    # p1/p2 坐标模式：不知道窗口标题，用「开跑前快照 + 记录前台窗口」的方式找出
+    # 本次流程拉起的浏览器窗口，结束后关闭
+    tracker = standalone.BrowserWindowTracker()
+    try:
+        return _coordinate_mode_action(tracker)
+    finally:
+        tracker.close_opened()
+
+
+def _coordinate_mode_action(tracker):
+    """p1/p2 坐标模式：按配置的坐标点击按钮与二维码消息"""
     # 直接查找Weixin.exe进程的窗口，而不是通过标题
     wechat_hwnd = find_wechat_window_by_process()
     if not wechat_hwnd:
         logger.warning("未找到Weixin.exe进程的窗口")
-        # 杀死微信进程并返回错误信息
-        kill_wechat_process()
         return _error_image("Window\nnot found")
 
     # 尝试激活窗口，添加重试机制和错误处理
@@ -621,6 +593,8 @@ def qrmai_action():
 
     # 点击第二个位置(p2) - 通常是"生成后的二维码的消息的位置"
     move_click(config["p2"][0], config["p2"][1])
+    # 点开消息可能拉起微信内置浏览器窗口，记录下来
+    tracker.note_after_click(1.0)
 
     # 初始化解码结果
     decoded_objects = None
@@ -654,9 +628,6 @@ def qrmai_action():
         else:
             # 如果是最后一次尝试仍然失败，则返回错误信息
             if i == config["decode"]["retry_count"] - 1:
-                # 杀死微信进程
-                kill_wechat_process()
-
                 return _error_image("Unable\nto load\nQRCode\n(Timeout)")
             # 打印重试信息
             logger.info(
@@ -665,9 +636,6 @@ def qrmai_action():
 
     # 使用解码得到的数据生成新的二维码并按皮肤配置合成
     img_io = build_qr_image(decoded_objects[0].data.decode("utf-8"))
-
-    # 杀死微信进程
-    kill_wechat_process()
 
     # 返回包含二维码图像的字节流
     return img_io

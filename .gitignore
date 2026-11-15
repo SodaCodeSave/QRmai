@@ -169,3 +169,4 @@ static/vendor/
 # 前端依赖
 node_modules/
 .playwright-mcp/
+.workbuddy/

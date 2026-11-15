@@ -11,9 +11,11 @@
 
 import ctypes
 import logging
+import subprocess
 import time
 from ctypes import wintypes
 
+import psutil
 from PIL import Image, ImageChops, ImageFilter, ImageStat
 from mss import mss
 from pynput.keyboard import Controller as KeyboardController
@@ -22,7 +24,7 @@ from pynput.mouse import Button, Controller as MouseController
 from pyzbar.pyzbar import decode
 
 try:
-    from win32 import win32gui
+    from win32 import win32gui, win32process
     import win32con
 
     HAS_WIN32 = True
@@ -172,6 +174,223 @@ def activate_window(hwnd):
         pass
 
     time.sleep(0.3)
+
+
+# 微信内置浏览器（公众号网页 / 文章 / 二维码页面）的进程名
+BROWSER_PROCESS_NAME = "WeChatAppEx"
+# 发送 WM_CLOSE 后等待窗口消失的时间（秒）
+CLOSE_WAIT = 2.0
+# 兜底 taskkill 之后再等待的时间（秒）
+TASKKILL_WAIT = 1.5
+
+
+def _process_name(pid):
+    """按 PID 取进程名，取不到时返回空字符串"""
+    try:
+        return psutil.Process(pid).name() or ""
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        return ""
+    except Exception:
+        return ""
+
+
+def _is_browser_process(name):
+    """进程是否属于微信内置浏览器"""
+    return BROWSER_PROCESS_NAME.lower() in (name or "").lower()
+
+
+def _window_pid(hwnd):
+    """取窗口所属进程的 PID"""
+    try:
+        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+        return pid
+    except Exception:
+        return 0
+
+
+def list_browser_windows():
+    """列出当前可见的微信内置浏览器窗口，返回 [(hwnd, 标题, pid), ...]
+
+    只收录内置浏览器进程（WeChatAppEx）的窗口。公众号聊天窗口由微信主客户端
+    承载，不会出现在这里，因此关闭浏览器窗口时不会影响聊天窗口。
+    """
+    if not HAS_WIN32:
+        return []
+
+    windows = []
+
+    def enum_callback(hwnd, _):
+        if not win32gui.IsWindowVisible(hwnd):
+            return True
+        title = win32gui.GetWindowText(hwnd).strip()
+        if not title:
+            return True
+
+        pid = _window_pid(hwnd)
+        if not _is_browser_process(_process_name(pid)):
+            return True
+
+        windows.append((hwnd, title, pid))
+        return True
+
+    win32gui.EnumWindows(enum_callback, None)
+    return windows
+
+
+def _window_alive(hwnd):
+    """窗口是否还在（已销毁或已隐藏都算关闭完成）"""
+    try:
+        return bool(win32gui.IsWindow(hwnd)) and bool(win32gui.IsWindowVisible(hwnd))
+    except Exception:
+        return False
+
+
+def _wait_closed(windows, timeout):
+    """等待一批窗口关闭，返回是否全部关闭"""
+    deadline = time.time() + max(float(timeout), 0)
+    while True:
+        if not any(_window_alive(hwnd) for hwnd, _, _ in windows):
+            return True
+        if time.time() >= deadline:
+            return False
+        time.sleep(0.1)
+
+
+def _request_close(hwnd, use_syscommand=False):
+    """向窗口投递关闭请求
+
+    use_syscommand=True 时投递 WM_SYSCOMMAND/SC_CLOSE，也就是点右上角叉号
+    时窗口收到的那条消息，部分窗口不响应 WM_CLOSE 但会响应它。
+    """
+    if use_syscommand:
+        win32gui.PostMessage(hwnd, win32con.WM_SYSCOMMAND, win32con.SC_CLOSE, 0)
+    else:
+        win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+
+
+def _close_windows(windows, wait=CLOSE_WAIT):
+    """关闭给定的窗口，返回是否全部关闭
+
+    按 WM_CLOSE → WM_SYSCOMMAND/SC_CLOSE → 不带 /F 的 taskkill 逐级尝试，前一级
+    不生效才用下一级。三种方式都只是请求窗口自己退出，不会强制结束进程。
+    """
+    if not windows:
+        logger.info("[关闭窗口] 未找到需要关闭的微信浏览器窗口")
+        return True
+
+    for use_syscommand in (False, True):
+        for hwnd, title, _ in windows:
+            if not _window_alive(hwnd):
+                continue
+            try:
+                _request_close(hwnd, use_syscommand)
+                label = "SC_CLOSE" if use_syscommand else "WM_CLOSE"
+                logger.info(f"[关闭窗口] 已发送 {label} 关闭请求: {title or '（无标题）'}")
+            except Exception as e:
+                logger.warning(f"[关闭窗口] 发送关闭请求失败（{title}）: {e}")
+
+        if _wait_closed(windows, wait if not use_syscommand else wait / 2):
+            logger.info("[关闭窗口] 微信浏览器窗口已关闭")
+            return True
+
+    # 兜底：不带 /F 的 taskkill，同样是向窗口投递关闭请求
+    remaining = [item for item in windows if _window_alive(item[0])]
+    if not remaining:
+        return True
+
+    logger.info(
+        f"[关闭窗口] {len(remaining)} 个窗口未响应关闭请求，改用 taskkill 请求关闭"
+    )
+    for _, title, pid in remaining:
+        # taskkill 会波及该进程的所有顶层窗口，只对内置浏览器进程使用
+        if not _is_browser_process(_process_name(pid)):
+            logger.info(f"[关闭窗口] 跳过非内置浏览器窗口: {title}")
+            continue
+        try:
+            subprocess.run(
+                ["taskkill", "/pid", str(pid)],
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                check=False,
+            )
+        except Exception as e:
+            logger.warning(f"[关闭窗口] taskkill 调用失败（{title}）: {e}")
+
+    if _wait_closed(remaining, TASKKILL_WAIT):
+        logger.info("[关闭窗口] 微信浏览器窗口已关闭（taskkill）")
+        return True
+
+    logger.warning("[关闭窗口] 窗口未响应关闭请求，保持原状")
+    return False
+
+
+def foreground_browser_window():
+    """当前前台窗口若是微信内置浏览器，返回它的句柄"""
+    if not HAS_WIN32:
+        return None
+    try:
+        hwnd = win32gui.GetForegroundWindow()
+    except Exception:
+        return None
+    if not hwnd:
+        return None
+    if not _is_browser_process(_process_name(_window_pid(hwnd))):
+        return None
+    return hwnd
+
+
+class BrowserWindowTracker:
+    """记录本次流程打开的微信内置浏览器窗口，结束时关闭
+
+    公众号里的网页（二维码页面）由内置浏览器以独立窗口打开，标题固定为「微信」，
+    无法按标题定位。因此在流程开始时快照已有窗口，把之后新出现的、以及被切到
+    前台的窗口记为本次打开的，结束时只关这些窗口；用户原本开着的窗口不受影响。
+    """
+
+    def __init__(self):
+        self._before = {hwnd for hwnd, _, _ in list_browser_windows()}
+        self._opened = set()
+
+    @property
+    def opened(self):
+        """本次流程打开的窗口句柄集合"""
+        return set(self._opened)
+
+    def note(self):
+        """记录此刻打开的浏览器窗口（在每次点击之后调用）"""
+        if not HAS_WIN32:
+            return
+
+        for hwnd, _, _ in list_browser_windows():
+            if hwnd not in self._before:
+                self._opened.add(hwnd)
+
+        # 复用已有窗口时句柄不变，但窗口会被切到前台显示二维码页面
+        hwnd = foreground_browser_window()
+        if hwnd:
+            self._opened.add(hwnd)
+
+    def close_opened(self, wait=CLOSE_WAIT):
+        """关闭本次流程打开的浏览器窗口，返回是否已全部关闭"""
+        if not HAS_WIN32:
+            return True
+
+        self.note()
+        targets = [item for item in list_browser_windows() if item[0] in self._opened]
+        if not targets:
+            logger.info("[关闭窗口] 本次流程没有打开新的微信浏览器窗口")
+            return True
+
+        logger.info(f"[关闭窗口] 关闭本次流程打开的 {len(targets)} 个浏览器窗口")
+        return _close_windows(targets, wait)
+
+    def note_after_click(self, timeout=1.2):
+        """点击后等待窗口出现再记录，最多等 timeout 秒"""
+        deadline = time.time() + max(float(timeout), 0.2)
+        while True:
+            self.note()
+            if self.opened or time.time() >= deadline:
+                return
+            time.sleep(0.15)
 
 
 def capture_region(rect):
@@ -545,6 +764,20 @@ def press_escape():
         logger.warning(f"[独立窗口] 关闭图片查看器失败: {e}")
 
 
+def _close_viewer(tracker, viewer_opened):
+    """收起放大的二维码
+
+    点缩略图后打开的可能是微信内置浏览器窗口，也可能是应用内的图片查看器：
+    前者用关闭窗口的方式收起，后者按 Esc 返回聊天界面。Esc 是全局按键，会落到
+    当时的前台窗口上，所以只有在没打开浏览器窗口时才按，避免误关聊天窗口。
+    """
+    if tracker.opened:
+        return tracker.close_opened()
+    if viewer_opened:
+        press_escape()
+    return True
+
+
 def _click(screen_x, screen_y):
     _mouse.position = (screen_x, screen_y)
     _mouse.click(Button.left, 1)
@@ -653,6 +886,8 @@ def qrcode_from_standalone_window(retry_count=10, timeout=10):
     _mouse.position = (click_x, click_y)
     time.sleep(0.2)
     image_before = capture_region(rect)
+    # 点击前先快照已有窗口，之后据此判断哪些窗口是本次流程打开的
+    tracker = BrowserWindowTracker()
     _mouse.click(Button.left, 1)
 
     attempts = max(1, int(retry_count))
@@ -683,7 +918,7 @@ def qrcode_from_standalone_window(retry_count=10, timeout=10):
                 if code and code["data"] != _last_qr_data:
                     return _finish(code, rect, attempt)
                 # 大图里还是上一次的二维码，说明新二维码还没生成，关掉继续等
-                press_escape()
+                _close_viewer(tracker, opened_viewer)
                 opened_viewer = False
                 logger.info("[独立窗口] 二维码尚未更新，继续等待")
                 continue
@@ -705,6 +940,7 @@ def qrcode_from_standalone_window(retry_count=10, timeout=10):
                     _click(rect[0] + center_x, rect[1] + center_y)
                     opened_viewer = True
                     clicks += 1
+                    tracker.note_after_click(max(interval, 0.5))
                     time.sleep(max(interval, 0.5))
                     continue
 
@@ -712,9 +948,8 @@ def qrcode_from_standalone_window(retry_count=10, timeout=10):
                 f"[独立窗口] 未识别到二维码，等待重试 ({attempt + 1}/{attempts})"
             )
     finally:
-        if opened_viewer:
-            press_escape()
-        # 与 p1/p2 模式一致：取完二维码后最小化窗口，减少对用户的打扰
+        # 收起二维码页面，公众号聊天窗口保留（只最小化，下次取码还要用）
+        _close_viewer(tracker, opened_viewer)
         try:
             win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
         except Exception:

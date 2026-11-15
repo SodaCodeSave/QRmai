@@ -239,8 +239,16 @@ def _run_flow(images, screen_image):
         press_escape=lambda: None,
         _mouse=mouse,
         _last_qr_data=None,
-        win32gui=type("Gui", (), {"ShowWindow": staticmethod(lambda *args: None)}),
-        time=type("Time", (), {"sleep": staticmethod(lambda seconds: None)}),
+        win32gui=type(
+            "Gui",
+            (),
+            {
+                "ShowWindow": staticmethod(lambda *args: None),
+                "EnumWindows": staticmethod(lambda callback, extra: True),
+                "GetForegroundWindow": staticmethod(lambda: 0),
+            },
+        ),
+        time=_FakeClock(),
     )
     try:
         data, found = standalone.qrcode_from_standalone_window(retry_count=3, timeout=3)
@@ -283,6 +291,226 @@ def test_flow_click_thumbnail_to_enlarge():
     ok("独立窗口流程：点击二维码缩略图放大后解码")
 
 
+class _FakeClock:
+    """假时钟：sleep 只推进虚拟时间，测试不必真等"""
+
+    def __init__(self):
+        self.now = 0.0
+
+    def time(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+class _FakeGui:
+    """假的 win32gui：维护一张窗口表，用于验证关闭逻辑"""
+
+    def __init__(self, windows):
+        # windows: {hwnd: {"title": 标题, "pid": 进程号}}
+        self.windows = windows
+        self.posted = []
+        self.ignores_close = set()
+        self.foreground = 0
+
+    def IsWindowVisible(self, hwnd):
+        return hwnd in self.windows
+
+    def IsWindow(self, hwnd):
+        return hwnd in self.windows
+
+    def GetForegroundWindow(self):
+        return self.foreground
+
+    def GetWindowText(self, hwnd):
+        return self.windows[hwnd]["title"]
+
+    def EnumWindows(self, callback, extra):
+        for hwnd in list(self.windows):
+            if callback(hwnd, extra) is False:
+                break
+        return True
+
+    def PostMessage(self, hwnd, message, wparam, lparam):
+        self.posted.append((hwnd, message))
+        # 正常响应 WM_CLOSE 的窗口会从表里消失；指定 ignores_close 的窗口模拟无响应
+        if hwnd not in self.ignores_close:
+            self.windows.pop(hwnd, None)
+        return True
+
+
+PROCESS_NAMES = {4000: "WeChatAppEx.exe", 5000: "Weixin.exe"}
+
+
+def _close_env(windows):
+    """搭一套假的窗口/进程环境，返回 (假 GUI, taskkill 调用记录, 原值)"""
+    gui = _FakeGui(windows)
+    clock = _FakeClock()
+    taskkills = []
+
+    def fake_run(args, **kwargs):
+        taskkills.append(args)
+        pid = int(args[2])
+        for hwnd, info in list(gui.windows.items()):
+            if info["pid"] == pid:
+                gui.windows.pop(hwnd)
+        return None
+
+    originals = _patch(
+        standalone,
+        win32gui=gui,
+        win32con=type(
+            "Con",
+            (),
+            {"WM_CLOSE": 16, "WM_SYSCOMMAND": 274, "SC_CLOSE": 61516},
+        ),
+        win32process=type(
+            "Proc",
+            (),
+            {
+                "GetWindowThreadProcessId": staticmethod(
+                    lambda hwnd: (0, gui.windows[hwnd]["pid"])
+                )
+            },
+        ),
+        _process_name=lambda pid: PROCESS_NAMES.get(pid, ""),
+        time=clock,
+        subprocess=type(
+            "Sub", (), {"run": staticmethod(fake_run), "CREATE_NO_WINDOW": 0}
+        ),
+    )
+    return gui, taskkills, originals
+
+
+def test_close_only_browser_windows():
+    """只关内置浏览器窗口，公众号聊天窗口不受影响"""
+    gui, taskkills, originals = _close_env(
+        {
+            100: {"title": "微信", "pid": 4000},  # 内置浏览器窗口
+            200: {"title": "舞萌丨中二", "pid": 5000},  # 公众号聊天窗口
+        }
+    )
+    try:
+        closed = standalone._close_windows(standalone.list_browser_windows())
+    finally:
+        _restore(standalone, originals)
+
+    assert closed, "内置浏览器窗口应被关闭"
+    assert gui.posted == [(100, 16)], f"只应向浏览器窗口发送 WM_CLOSE，实际 {gui.posted}"
+    assert 200 in gui.windows, "公众号聊天窗口不应被关闭"
+    assert taskkills == [], "正常响应时不需要 taskkill"
+    ok("只关内置浏览器窗口，不动公众号聊天窗口")
+
+
+def test_chat_window_is_never_targeted():
+    """只有公众号聊天窗口时没有关闭对象，窗口原样保留"""
+    gui, taskkills, originals = _close_env({300: {"title": "舞萌丨中二", "pid": 5000}})
+    try:
+        windows = standalone.list_browser_windows()
+        closed = standalone._close_windows(windows)
+    finally:
+        _restore(standalone, originals)
+
+    assert windows == [], f"聊天窗口不应出现在关闭列表里: {windows}"
+    assert closed
+    assert gui.posted == [], f"不应向聊天窗口发任何消息: {gui.posted}"
+    assert taskkills == []
+    assert 300 in gui.windows
+    ok("公众号聊天窗口不会进入关闭列表")
+
+
+def test_close_falls_back_to_graceful_taskkill():
+    """窗口不响应 WM_CLOSE 时，用不带 /F 的 taskkill 继续请求关闭"""
+    gui, taskkills, originals = _close_env({100: {"title": "微信", "pid": 4000}})
+    gui.ignores_close.add(100)
+    try:
+        closed = standalone._close_windows(standalone.list_browser_windows())
+    finally:
+        _restore(standalone, originals)
+
+    assert closed, "taskkill 之后窗口应已关闭"
+    assert gui.posted == [(100, 16), (100, 274)], f"应逐级尝试关闭: {gui.posted}"
+    assert taskkills == [["taskkill", "/pid", "4000"]], f"taskkill 参数错误: {taskkills}"
+    ok("窗口无响应时兜底用 taskkill 且不带 /F")
+
+
+def test_tracker_closes_only_windows_opened_by_flow():
+    """只关本次流程新弹出的浏览器窗口，开跑前已存在的窗口不受影响"""
+    gui, taskkills, originals = _close_env(
+        {
+            100: {"title": "微信", "pid": 4000},  # 开跑前就开着的浏览器窗口
+            200: {"title": "微信", "pid": 5000},  # 微信主窗口
+        }
+    )
+    try:
+        tracker = standalone.BrowserWindowTracker()
+        # 流程中弹出二维码网页窗口并切到前台
+        gui.windows[300] = {"title": "微信", "pid": 4000}
+        gui.foreground = 300
+        tracker.note()
+        closed = tracker.close_opened()
+    finally:
+        _restore(standalone, originals)
+
+    assert closed, "新弹出的浏览器窗口应被关闭"
+    assert [hwnd for hwnd, _ in gui.posted] == [300], f"关闭对象错误: {gui.posted}"
+    assert 100 in gui.windows, "开跑前已存在的浏览器窗口不应被关闭"
+    assert 200 in gui.windows, "微信主窗口不应被关闭"
+    assert taskkills == []
+    ok("BrowserWindowTracker 只关本次流程新开的窗口")
+
+
+def test_tracker_treats_foreground_window_as_opened():
+    """复用旧窗口时句柄不变，只要被切到前台就视为本次流程打开的"""
+    gui, _, originals = _close_env({100: {"title": "微信", "pid": 4000}})
+    try:
+        tracker = standalone.BrowserWindowTracker()
+        gui.foreground = 100  # 流程点击后这个窗口被切到前台
+        tracker.note()
+        closed = tracker.close_opened()
+    finally:
+        _restore(standalone, originals)
+
+    assert closed, "被切到前台的浏览器窗口应被关闭"
+    assert [hwnd for hwnd, _ in gui.posted] == [100]
+    ok("BrowserWindowTracker 把前台浏览器窗口算作本次打开")
+
+
+def test_close_viewer_prefers_closing_browser_window():
+    """有浏览器窗口时只关窗口，不按 Esc —— Esc 会落到前台聊天窗口上"""
+    gui, _, originals = _close_env({100: {"title": "微信", "pid": 4000}})
+    presses = []
+    try:
+        originals.update(_patch(standalone, press_escape=lambda: presses.append(1)))
+        tracker = standalone.BrowserWindowTracker()
+        gui.foreground = 100
+        tracker.note()
+        standalone._close_viewer(tracker, True)
+    finally:
+        _restore(standalone, originals)
+
+    assert [hwnd for hwnd, _ in gui.posted] == [100], f"应关闭浏览器窗口: {gui.posted}"
+    assert presses == [], "有浏览器窗口时不应按 Esc"
+    ok("收起二维码页面只关浏览器窗口，不按 Esc")
+
+
+def test_close_viewer_skips_escape_without_viewer():
+    """没点开任何东西时不按 Esc"""
+    gui, _, originals = _close_env({})
+    presses = []
+    try:
+        originals.update(_patch(standalone, press_escape=lambda: presses.append(1)))
+        tracker = standalone.BrowserWindowTracker()
+        standalone._close_viewer(tracker, False)
+    finally:
+        _restore(standalone, originals)
+
+    assert presses == [], "未点开查看器时不应按 Esc"
+    assert gui.posted == []
+    ok("未点开查看器时不按 Esc")
+
+
 def main():
     test_nav_bar_top()
     test_nav_band_with_weak_divider()
@@ -296,6 +524,13 @@ def main():
     test_chat_updated()
     test_flow_direct_decode()
     test_flow_click_thumbnail_to_enlarge()
+    test_close_only_browser_windows()
+    test_chat_window_is_never_targeted()
+    test_close_falls_back_to_graceful_taskkill()
+    test_tracker_closes_only_windows_opened_by_flow()
+    test_tracker_treats_foreground_window_as_opened()
+    test_close_viewer_prefers_closing_browser_window()
+    test_close_viewer_skips_escape_without_viewer()
     print(f"\n全部通过：{len(PASSED)} 项")
 
 
