@@ -12,7 +12,7 @@
     "port": 5000,
     "qr_route": "/",
     "cache_duration": 0,
-    "standalone_mode": false,
+    "standalone_mode": true,
     "decode": {
         "time": 10,
         "retry_count": 10
@@ -25,5 +25,5 @@
         638
     ],
     "dev_mode": false,
-    "version": "bfa024453fb5c7281d3948401446e7cb"
+    "version": "229c78aa4ef46762210c5ddf0c649876"
 }

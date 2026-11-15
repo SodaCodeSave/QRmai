@@ -156,6 +156,7 @@ def build_executable():
         "flask",
         "pywin32",
         "updater",
+        "standalone",
         "requests"
     ]
 

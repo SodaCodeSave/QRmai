@@ -23,6 +23,8 @@ from flask import (
 import psutil  # 进程管理库
 import subprocess  # 用于运行系统命令
 
+import standalone  # 独立窗口模式下自动识别按钮与二维码位置
+
 
 def resource_path(relative_path):
     """获取资源文件的绝对路径"""
@@ -363,6 +365,101 @@ def find_wechat_window_by_process():
     return windows[0] if windows else None
 
 
+def _error_image(message):
+    """生成带错误信息的提示图片，返回 BytesIO"""
+    img_io = BytesIO()
+    im = Image.new("L", (100, 100), "#FFFFFF")
+    font = ImageFont.load_default(size=23)
+    draw = ImageDraw.Draw(im)
+    draw.text((0, 0), message, font=font, fill="#000000")
+    im.save(img_io, format="PNG")
+    img_io.seek(0)
+    return img_io
+
+
+def build_qr_image(qr_data):
+    """用解码得到的二维码数据生成二维码，并按皮肤配置合成，返回 BytesIO"""
+    img_io = BytesIO()
+    qr_img = qrcode.make(qr_data)
+
+    # 如果skin.png存在，则将二维码与皮肤合成
+    if "skin.png" in os.listdir():
+
+        if config["skin_format"] == "custom":
+            skin = Image.open(config["custom_skin_path"])
+        else:
+            skin = Image.open("skin.png")  # 打开皮肤图片
+        qr_img = qr_img.convert("RGBA")  # 转换二维码为RGBA模式
+
+        # 获取二维码尺寸
+        width, height = qr_img.size
+
+        # 将二维码中的白色区域替换为透明
+        for x in range(width):
+            for y in range(height):
+                r, g, b, a = qr_img.getpixel((x, y))  # 获取当前像素的颜色值
+                if r > 200 and g > 200 and b > 200:  # 判断是否为接近白色的像素
+                    qr_img.putpixel((x, y), (255, 255, 255, 0))  # 替换为透明像素
+
+        # 调整二维码大小
+        if config["skin_format"] == "custom":
+            qrcode_size = int(config["custom_skin_qrcode_size"])
+            resized_qr = qr_img.resize((qrcode_size, qrcode_size))
+        else:
+            resized_qr = qr_img.resize((576, 576))
+
+        # 根据皮肤格式配置确定粘贴位置
+        if config["skin_format"] == "new":
+            # 新版皮肤格式，二维码居中
+            skin.paste(resized_qr, (106, 638), mask=resized_qr)
+        elif config["skin_format"] == "old":
+            # 旧版皮肤格式，二维码靠下
+            skin.paste(resized_qr, (106, 1060), mask=resized_qr)
+        else:
+            qrcode_point = (
+                config["custom_skin_qrcode_point"][0],
+                config["custom_skin_qrcode_point"][1],
+            )
+            skin.paste(resized_qr, qrcode_point, mask=resized_qr)
+
+        skin.save(img_io, format="PNG")
+
+    # 如果没找到skin.png，就判断是不是自定义
+    elif config["skin_format"] == "custom":
+
+        skin = Image.open(config["custom_skin_path"])  # 打开皮肤图片
+        qr_img = qr_img.convert("RGBA")  # 转换二维码为RGBA模式
+
+        # 获取二维码尺寸
+        width, height = qr_img.size
+
+        # 将二维码中的白色区域替换为透明
+        for x in range(width):
+            for y in range(height):
+                r, g, b, a = qr_img.getpixel((x, y))  # 获取当前像素的颜色值
+                if r > 200 and g > 200 and b > 200:  # 判断是否为接近白色的像素
+                    qr_img.putpixel((x, y), (255, 255, 255, 0))  # 替换为透明像素
+
+        # 调整二维码大小为用户设置的
+        qrcode_size = int(config["custom_skin_qrcode_size"])
+        resized_qr = qr_img.resize((qrcode_size, qrcode_size))
+
+        # 获取用户设置的二维码坐标
+        qrcode_point = (
+            config["custom_skin_qrcode_point"][0],
+            config["custom_skin_qrcode_point"][1],
+        )
+        skin.paste(resized_qr, qrcode_point, mask=resized_qr)
+
+        skin.save(img_io, format="PNG")
+    else:
+        # 如果没有皮肤文件，则直接保存原始二维码
+        qr_img.save(img_io, format="PNG")
+
+    img_io.seek(0)
+    return img_io
+
+
 def qrmai_action():
     """
     核心功能函数：执行二维码获取操作
@@ -370,9 +467,24 @@ def qrmai_action():
     2. 自动点击指定位置获取二维码
     3. 截屏并识别二维码
     4. 将二维码与皮肤合成并返回
+
+    独立窗口模式（standalone_mode）下，按钮与二维码的位置都自动识别，不使用 p1/p2 坐标。
     """
-    # 创建字节流对象用于存储最终的图片数据
-    img_io = BytesIO()
+    # 独立窗口模式：窗口位置、按钮位置和二维码位置都自动识别
+    if config.get("standalone_mode"):
+        qr_data, window_found = standalone.qrcode_from_standalone_window(
+            retry_count=config["decode"]["retry_count"],
+            timeout=config["decode"]["time"],
+        )
+        if qr_data:
+            img_io = build_qr_image(qr_data)
+            kill_wechat_process()
+            return img_io
+        if window_found:
+            logger.warning("独立窗口二维码识别超时")
+            kill_wechat_process()
+            return _error_image("Unable\nto load\nQRCode\n(Timeout)")
+        logger.warning("未找到「舞萌 | 中二」独立窗口，回退到 p1/p2 坐标模式")
 
     # 直接查找Weixin.exe进程的窗口，而不是通过标题
     wechat_hwnd = find_wechat_window_by_process()
@@ -380,13 +492,7 @@ def qrmai_action():
         logger.warning("未找到Weixin.exe进程的窗口")
         # 杀死微信进程并返回错误信息
         kill_wechat_process()
-        im = Image.new("L", (100, 100), "#FFFFFF")
-        font = ImageFont.load_default(size=23)
-        draw = ImageDraw.Draw(im)
-        draw.text((0, 0), "Window\nnot found", font=font, fill="#000000")
-        im.save(img_io, format="PNG")
-        img_io.seek(0)
-        return img_io
+        return _error_image("Window\nnot found")
 
     # 尝试激活窗口，添加重试机制和错误处理
     activation_success = False
@@ -472,112 +578,14 @@ def qrmai_action():
                 # 杀死微信进程
                 kill_wechat_process()
 
-                # 创建一个提示错误的图像
-                im = Image.new("L", (100, 100), "#FFFFFF")  # 创建白色背景图像
-                font = ImageFont.load_default(size=23)  # 加载默认字体
-                draw = ImageDraw.Draw(im)  # 创建绘图对象
-                # 绘制错误信息文本
-                draw.text(
-                    (0, 0),
-                    "Unable\nto load\nQRCode\n(Timeout)",
-                    font=font,
-                    fill="#000000",
-                )
-                im.save(img_io, format="PNG")  # 保存图像到字节流
-                img_io.seek(0)  # 将指针移到开始位置
-
-                return img_io  # 返回错误图像
+                return _error_image("Unable\nto load\nQRCode\n(Timeout)")
             # 打印重试信息
             logger.info(
                 f"二维码解码失败 过{config['decode']['time'] / config['decode']['retry_count']}s后重试 ({i+1}/{config['decode']['retry_count']})"
             )
 
-    # 使用解码得到的数据生成新的二维码
-    qr_img = qrcode.make(decoded_objects[0].data.decode("utf-8"))
-
-    import os
-
-    # 如果skin.png存在，则将二维码与皮肤合成
-    if "skin.png" in os.listdir():
-
-        if config["skin_format"] == "custom":
-            skin = Image.open(config["custom_skin_path"])
-        else:
-            skin = Image.open("skin.png")  # 打开皮肤图片
-        qr_img = qr_img.convert("RGBA")  # 转换二维码为RGBA模式
-
-        # 获取二维码尺寸
-        width, height = qr_img.size
-
-        # 将二维码中的白色区域替换为透明
-        for x in range(width):
-            for y in range(height):
-                r, g, b, a = qr_img.getpixel((x, y))  # 获取当前像素的颜色值
-                if r > 200 and g > 200 and b > 200:  # 判断是否为接近白色的像素
-                    qr_img.putpixel((x, y), (255, 255, 255, 0))  # 替换为透明像素
-
-        # 调整二维码大小为576x576
-        if config["skin_format"] == "custom":
-            qrcode_size = int(config["custom_skin_qrcode_size"])
-            resized_qr = qr_img.resize((qrcode_size, qrcode_size))
-        else:
-            resized_qr = qr_img.resize((576, 576))
-
-        # 根据皮肤格式配置确定粘贴位置
-        if config["skin_format"] == "new":
-            # 新版皮肤格式，二维码居中
-            skin.paste(
-                resized_qr, (106, 638), mask=resized_qr
-            )  # 使用 resize 后的图像作为 mask
-        elif config["skin_format"] == "old":
-            # 旧版皮肤格式，二维码靠下
-            skin.paste(
-                resized_qr, (106, 1060), mask=resized_qr
-            )  # 使用 resize 后的图像作为 mask
-        else:
-            qrcode_point = (
-                config["custom_skin_qrcode_point"][0],
-                config["custom_skin_qrcode_point"][1],
-            )
-            skin.paste(resized_qr, qrcode_point, mask=resized_qr)
-
-        # 保存合成后的图像到字节流
-        skin.save(img_io, format="PNG")
-
-    # 如果没找到skin.png，就判断是不是自定义
-    elif config["skin_format"] == "custom":
-
-        skin = Image.open(config["custom_skin_path"])  # 打开皮肤图片
-        qr_img = qr_img.convert("RGBA")  # 转换二维码为RGBA模式
-
-        # 获取二维码尺寸
-        width, height = qr_img.size
-
-        # 将二维码中的白色区域替换为透明
-        for x in range(width):
-            for y in range(height):
-                r, g, b, a = qr_img.getpixel((x, y))  # 获取当前像素的颜色值
-                if r > 200 and g > 200 and b > 200:  # 判断是否为接近白色的像素
-                    qr_img.putpixel((x, y), (255, 255, 255, 0))  # 替换为透明像素
-
-        # 调整二维码大小为用户设置的
-        qrcode_size = int(config["custom_skin_qrcode_size"])
-        resized_qr = qr_img.resize((qrcode_size, qrcode_size))
-
-        # 获取用户设置的二维码坐标
-        qrcode_point = (
-            config["custom_skin_qrcode_point"][0],
-            config["custom_skin_qrcode_point"][1],
-        )
-        skin.paste(resized_qr, qrcode_point, mask=resized_qr)
-
-        skin.save(img_io, format="PNG")
-    else:
-        # 如果没有皮肤文件，则直接保存原始二维码
-        qr_img.save(img_io, format="PNG")
-
-    # 将字节流指针移到开始位置
-    img_io.seek(0)
+    # 使用解码得到的数据生成新的二维码并按皮肤配置合成
+    img_io = build_qr_image(decoded_objects[0].data.decode("utf-8"))
 
     # 杀死微信进程
     kill_wechat_process()
@@ -851,6 +859,11 @@ if __name__ == "__main__":
     # 根据配置动态注册二维码路由
     qr_route = config.get("qr_route", "/qrmai")
     app.add_url_rule(qr_route, "qrmai", qrmai)
+
+    if config.get("standalone_mode"):
+        logger.info("[独立窗口] standalone_mode 已启用，将自动识别按钮与二维码位置")
+    else:
+        logger.info("使用 p1/p2 坐标模式")
 
     # 启动Flask应用，使用配置中的主机和端口
     from webbrowser import open as open_webbrowser
