@@ -51,6 +51,11 @@
     margin-bottom: 8px;
 }
 
+/* 非自定义皮肤时隐藏二维码大小/坐标 */
+#customSkinExtra[hidden] {
+    display: none;
+}
+
 /* 深色模式 */
 @media (prefers-color-scheme: dark) {
     .setting-description {
@@ -158,12 +163,14 @@ mdui-switch {
                     <mdui-text-field label="皮肤路径" name="custom_skin_path"
                         value="{{ config.get('custom_skin_path', './skin.png') }}"
                         helper="自定义皮肤的图片位置"></mdui-text-field>
-                    <mdui-text-field label="二维码大小" name="custom_skin_qrcode_size"
-                        value="{{ config.get('custom_skin_qrcode_size', '576') }}" type="number" min="1" step="1"
-                        helper="自定义皮肤的二维码大小"></mdui-text-field>
-                    <mdui-text-field label="二维码坐标" name="custom_skin_qrcode_point"
-                        value="{{ config.get('custom_skin_qrcode_point', [106, 638])|join(',') }}"
-                        helper="自定义皮肤的二维码坐标"></mdui-text-field>
+                    <div id="customSkinExtra" {% if config.get('skin_format', 'new') != 'custom' %}hidden{% endif %}>
+                        <mdui-text-field label="二维码大小" name="custom_skin_qrcode_size"
+                            value="{{ config.get('custom_skin_qrcode_size', '576') }}" type="number" min="1" step="1"
+                            helper="自定义皮肤的二维码大小"></mdui-text-field>
+                        <mdui-text-field label="二维码坐标" name="custom_skin_qrcode_point"
+                            value="{{ config.get('custom_skin_qrcode_point', [106, 638])|join(',') }}"
+                            helper="自定义皮肤的二维码坐标"></mdui-text-field>
+                    </div>
 
                     <mdui-button type="submit" variant="filled">保存应用设置</mdui-button>
                 </form>
@@ -296,6 +303,18 @@ function redirectToLogin() {
         window.location.href = '/login';
     }, 1500);
 }
+
+// 仅在选择“自定义皮肤”时显示二维码大小和坐标
+const skinFormatGroup = document.getElementById('skin_format');
+const customSkinExtra = document.getElementById('customSkinExtra');
+
+function syncCustomSkinFields() {
+    const format = skinFormatGroup.value || skinFormatGroup.getAttribute('value');
+    customSkinExtra.hidden = format !== 'custom';
+}
+
+skinFormatGroup.addEventListener('change', syncCustomSkinFields);
+syncCustomSkinFields();
 
 // AJAX 请求标记，后端据此返回401而非重定向；同时携带CSRF令牌
 const ajaxHeaders = {
