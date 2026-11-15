@@ -162,8 +162,10 @@ QRmai 支持自定义皮肤，让二维码页面更美观：
    ```
 
 2. **准备依赖文件**:
-   - 获取二维码识别所需DLL文件：`libiconv.dll` 和 `libzbar-64.dll`
-   - 将这两个文件复制到 `packaging` 目录中
+   - 获取二维码识别所需DLL文件：`libiconv.dll` 和 `libzbar-64.dll`（以及它们的依赖 DLL）
+   - 将文件复制到 `packaging` 目录中
+   - 推荐用 MSYS2 的 **UCRT64** 终端获取（`zbar` 已不在 mingw64 仓库中），
+     详细命令见 [`packaging/DLL_INSTALLATION.md`](packaging/DLL_INSTALLATION.md)
 
 3. **执行打包**:
 
@@ -185,7 +187,7 @@ QRmai 支持自定义皮肤，让二维码页面更美观：
    ```
 
 2. **准备依赖文件**:
-   - 同样需要 `libiconv.dll` 和 `libzbar-64.dll`
+   - 同样需要 `libiconv.dll` 和 `libzbar-64.dll`（获取方式同上）
    - 将文件放置在 `packaging` 目录中
 
 3. **执行打包**:

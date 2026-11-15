@@ -24,41 +24,55 @@ jobs:
         python-version: '3.9'
 
     # ===== 从 MSYS2 获取 DLL =====
+    # 注意: 必须用 UCRT64 而不是 MINGW64。
+    #   1) msys2 已弃用 mingw64 环境（setup-msys2 会报警告）
+    #   2) zbar 只发布在 ucrt64 / clang64 仓库，mingw64 里已没有
+    #      mingw-w64-x86_64-zbar，pacman 会报 "target not found"
+    # UCRT 运行时在 Windows 10 及以上由系统自带，无需额外分发。
     - name: Setup MSYS2
       uses: msys2/setup-msys2@v2
       with:
-        msystem: MINGW64
+        msystem: UCRT64
         update: true
         install: >-
-          mingw-w64-x86_64-libiconv
-          mingw-w64-x86_64-zbar
-          mingw-w64-x86_64-ntldd
+          mingw-w64-ucrt-x86_64-libiconv
+          mingw-w64-ucrt-x86_64-zbar
+          mingw-w64-ucrt-x86_64-ntldd
 
     - name: Fetch DLLs from MSYS2
       shell: msys2 {0}
       run: |
-        set -e
+        set -eu
         mkdir -p packaging
+
+        MINGW_BIN="$MINGW_PREFIX/bin"
+        echo "MINGW_PREFIX=$MINGW_PREFIX"
 
         # 1) libiconv：同时提供 libiconv-2.dll 和 libiconv.dll 两个名字
         #    - libiconv-2.dll 是 libzbar-0.dll 内部写死的依赖名
         #    - libiconv.dll   是项目代码（ctypes）期望的名字
-        cp /mingw64/bin/libiconv-2.dll  packaging/libiconv-2.dll
-        cp /mingw64/bin/libiconv-2.dll  packaging/libiconv.dll
-        if [ -f /mingw64/bin/libcharset-1.dll ]; then
-          cp /mingw64/bin/libcharset-1.dll packaging/
+        for src in "$MINGW_BIN"/libiconv-[0-9]*.dll; do
+          cp "$src" "packaging/$(basename "$src")"
+          cp "$src" "packaging/libiconv.dll"
+        done
+        if [ -f "$MINGW_BIN/libcharset-1.dll" ]; then
+          cp "$MINGW_BIN/libcharset-1.dll" packaging/
         fi
 
         # 2) libzbar：项目期望的名字是 libzbar-64.dll
-        cp /mingw64/bin/libzbar-0.dll packaging/libzbar-64.dll
+        zbar_src=$(ls "$MINGW_BIN"/libzbar-*.dll | head -n 1)
+        echo "libzbar source: $zbar_src"
+        cp "$zbar_src" packaging/libzbar-64.dll
 
-        # 3) 递归抓取 libzbar-0.dll 的所有 mingw64 依赖
-        ntldd -R /mingw64/bin/libzbar-0.dll \
-          | grep -oP 'mingw64\\bin\\\K[^ ]+\.dll' \
+        # 3) 递归抓取 libzbar 的所有 mingw 依赖（libiconv、libwinpthread 等）。
+        #    ntldd 输出形如 "... => C:\...\ucrt64\bin\xxx.dll (0x...)"，
+        #    这里按路径取文件名，不依赖具体是 mingw64 还是 ucrt64。
+        ntldd -R "$zbar_src" \
+          | sed -n 's#.*=> .*[\\/]\([^\\/]*\.dll\).*#\1#p' \
           | sort -u \
           | while read -r dll; do
-              if [ -f "/mingw64/bin/$dll" ]; then
-                cp -n "/mingw64/bin/$dll" packaging/
+              if [ -f "$MINGW_BIN/$dll" ]; then
+                cp -n "$MINGW_BIN/$dll" packaging/
               fi
             done
 

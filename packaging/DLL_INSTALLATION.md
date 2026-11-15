@@ -9,7 +9,45 @@ QRmai使用pyzbar库进行二维码识别，在Windows系统上需要额外的DL
 
 ## 获取DLL文件的方法
 
-### 方法一：从Python安装目录复制（推荐）
+### 方法一：从 MSYS2 UCRT64 获取（推荐，CI 也是这么做的）
+
+> ⚠️ 不要用 **MINGW64** 环境：MSYS2 已弃用 mingw64，而且 `zbar` 目前只发布在
+> `ucrt64` / `clang64` 仓库，`pacman -S mingw-w64-x86_64-zbar` 会报
+> `error: target not found: mingw-w64-x86_64-zbar`。
+
+1. 安装 [MSYS2](https://www.msys2.org/)，打开 **UCRT64** 终端
+2. 安装需要的包（`ntldd` 用于查依赖）：
+
+   ```bash
+   pacman -S --needed mingw-w64-ucrt-x86_64-libiconv mingw-w64-ucrt-x86_64-zbar mingw-w64-ucrt-x86_64-ntldd
+   ```
+
+3. 把 DLL 复制到项目的 `packaging` 目录：
+
+   ```bash
+   cd /d/your/path/QRmai
+   mkdir -p packaging
+
+   # libzbar-0.dll 内部依赖名是 libiconv-2.dll，项目代码则按 libiconv.dll 加载
+   cp /ucrt64/bin/libiconv-2.dll packaging/
+   cp /ucrt64/bin/libiconv-2.dll packaging/libiconv.dll
+   [ -f /ucrt64/bin/libcharset-1.dll ] && cp /ucrt64/bin/libcharset-1.dll packaging/
+
+   # pyzbar 查找的文件名是 libzbar-64.dll
+   cp /ucrt64/bin/libzbar-0.dll packaging/libzbar-64.dll
+
+   # 递归补齐 libzbar 的其它 mingw 依赖（libintl-8.dll / libwinpthread-1.dll 等）
+   ntldd -R /ucrt64/bin/libzbar-0.dll \
+     | sed -n 's#.*=> .*[\\/]\([^\\/]*\.dll\).*#\1#p' \
+     | sort -u \
+     | while read -r dll; do
+         [ -f "/ucrt64/bin/$dll" ] && cp -n "/ucrt64/bin/$dll" packaging/
+       done
+   ```
+
+   > UCRT64 版本的 DLL 依赖系统自带的 UCRT 运行库，因此需要 Windows 10 及以上。
+
+### 方法二：从Python安装目录复制
 
 如果您已经安装了pyzbar库，可以尝试从Python的site-packages目录中复制这些文件：
 
@@ -20,14 +58,14 @@ QRmai使用pyzbar库进行二维码识别，在Windows系统上需要额外的DL
 
 2. 在该目录或其父目录中查找DLL文件
 
-### 方法二：从GitHub仓库下载
+### 方法三：从GitHub仓库下载
 
 您可以从以下GitHub仓库下载这些DLL文件：
 
 1. 访问 https://github.com/NaturalHistoryMuseum/pyzbar/tree/master/pyzbar
 2. 下载对应的DLL文件
 
-### 方法三：使用conda安装（如果您使用conda环境）
+### 方法四：使用conda安装（如果您使用conda环境）
 
 ```bash
 conda install -c conda-forge pyzbar
