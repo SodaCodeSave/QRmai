@@ -151,6 +151,23 @@
     letter-spacing: 0.02em;
     color: color-mix(in oklab, var(--color-base-content) 50%, transparent);
   }
+
+  /* 指南里的步骤序号 */
+  .guide-step {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 1.125rem;
+    height: 1.125rem;
+    margin-top: 0.075rem;
+    border-radius: 9999px;
+    background-color: var(--color-base-300);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1;
+    color: color-mix(in oklab, var(--color-base-content) 72%, transparent);
+  }
 }
 
 /* 地址框里的长 URL 允许在任意位置断行 */

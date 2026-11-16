@@ -254,22 +254,120 @@
         </div>
     </section>
 
-    <!-- 完成态：二维码地址 -->
+    <!-- 完成态：二维码地址 + 外网访问 -->
     <section data-panel="done" hidden>
-        <div class="overflow-hidden rounded-box border border-base-300 bg-base-100">
-            <div class="border-b border-base-300 px-5 py-4">
-                <h2 class="text-sm font-semibold">二维码地址</h2>
-                <p class="mt-1 text-xs opacity-60">填到手表、翻盖手机等客户端的浏览器里即可取二维码。</p>
+        <div class="flex flex-col gap-4">
+            <div class="overflow-hidden rounded-box border border-base-300 bg-base-100">
+                <div class="border-b border-base-300 px-5 py-4">
+                    <h2 class="text-sm font-semibold">二维码地址</h2>
+                    <p class="mt-1 text-xs opacity-60">填到手表、翻盖手机等客户端的浏览器里即可取二维码。</p>
+                </div>
+
+                <div class="flex flex-col gap-4 px-5 py-5">
+                    <div id="restartNotice" class="alert alert-warning hidden text-sm"></div>
+                    <div id="addressList" class="flex flex-col gap-2"></div>
+                </div>
+
+                <div class="flex items-center justify-between gap-2 border-t border-base-300 bg-base-200/40 px-5 py-3">
+                    <button type="button" id="reconfigBtn" class="btn btn-ghost">重新配置</button>
+                    <a href="/about" class="btn btn-primary">关于与更新</a>
+                </div>
             </div>
 
-            <div class="flex flex-col gap-4 px-5 py-5">
-                <div id="restartNotice" class="alert alert-warning hidden text-sm"></div>
-                <div id="addressList" class="flex flex-col gap-2"></div>
-            </div>
+            <!-- 内网穿透 -->
+            <div class="overflow-hidden rounded-box border border-base-300 bg-base-100">
+                <div class="border-b border-base-300 px-5 py-4">
+                    <h2 class="text-sm font-semibold">外网访问</h2>
+                    <p class="mt-1 text-xs opacity-60">本机与局域网之外，还需要一条通道。两种方案挑一种，不用都配。</p>
+                </div>
 
-            <div class="flex items-center justify-between gap-2 border-t border-base-300 bg-base-200/40 px-5 py-3">
-                <button type="button" id="reconfigBtn" class="btn btn-ghost">重新配置</button>
-                <a href="/about" class="btn btn-primary">关于与更新</a>
+                <div class="flex flex-col gap-4 px-5 py-5">
+                    <div class="alert alert-warning items-start text-sm">
+                        <div class="min-w-0">
+                            <p class="font-medium">通到公网后，令牌就是唯一门禁</p>
+                            <p class="mt-1 text-xs opacity-75">任何拿到完整链接的人都能取码，外露之前建议先把令牌换成长随机串。</p>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-warning shrink-0" data-guide-token>去改令牌</button>
+                    </div>
+
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <!-- SakuraFrp -->
+                        <div class="flex flex-col gap-3 rounded-field border border-base-300 bg-base-200/40 px-4 py-4">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <div class="text-sm font-medium">SakuraFrp</div>
+                                    <div class="mt-0.5 text-xs opacity-60">公网隧道，任何浏览器都能直接打开</div>
+                                </div>
+                                <a class="btn btn-ghost btn-sm shrink-0" href="https://www.natfrp.com/" target="_blank"
+                                    rel="noopener">官网</a>
+                            </div>
+
+                            <ol class="flex flex-col gap-2 text-xs leading-5">
+                                <li class="flex gap-2">
+                                    <span class="guide-step">1</span>
+                                    <span>注册后完成实名认证（国内节点需约 1 元），在面板里复制<b>访问密钥</b>。</span>
+                                </li>
+                                <li class="flex gap-2">
+                                    <span class="guide-step">2</span>
+                                    <span>创建 <b>TCP</b> 隧道：本地地址 <code
+                                            class="font-mono">127.0.0.1</code>，本地端口填 <b
+                                            data-live-port>{{ config.get('port', 5000) }}</b>，远程端口选随机分配。</span>
+                                </li>
+                                <li class="flex gap-2">
+                                    <span class="guide-step">3</span>
+                                    <span>下载客户端后用密钥登录并启动隧道，日志里会给出访问域名和端口，拿它拼下面的地址。</span>
+                                </li>
+                            </ol>
+
+                            <p class="border-t border-base-300 pt-3 text-xs leading-5 opacity-60">
+                                客户端跑在本机，所以监听地址保持 <code class="font-mono">127.0.0.1</code> 反而更安全。打不开先查：端口是否与配置一致、隧道是否已启动、部分节点不允许 TCP 隧道转发 HTTP（换个节点再试）。
+                            </p>
+                        </div>
+
+                        <!-- Tailscale -->
+                        <div class="flex flex-col gap-3 rounded-field border border-base-300 bg-base-200/40 px-4 py-4">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <div class="text-sm font-medium">Tailscale</div>
+                                    <div class="mt-0.5 text-xs opacity-60">组网直连，访问端也要登录同一账号</div>
+                                </div>
+                                <a class="btn btn-ghost btn-sm shrink-0" href="https://tailscale.com/" target="_blank"
+                                    rel="noopener">官网</a>
+                            </div>
+
+                            <ol class="flex flex-col gap-2 text-xs leading-5">
+                                <li class="flex gap-2">
+                                    <span class="guide-step">1</span>
+                                    <span>运行程序的电脑和要访问的设备都装 Tailscale，登录<b>同一个账号</b>。</span>
+                                </li>
+                                <li class="flex gap-2">
+                                    <span class="guide-step">2</span>
+                                    <span>把监听地址改成 <code class="font-mono">0.0.0.0</code> 并重启程序，否则只有本机能连。</span>
+                                </li>
+                                <li class="flex gap-2">
+                                    <span class="guide-step">3</span>
+                                    <span>在电脑上执行 <code class="font-mono">tailscale ip -4</code> 拿到 <code
+                                            class="font-mono">100.x</code> 地址，用 <code
+                                            class="font-mono">100.x:<span data-live-port>{{ config.get('port', 5000) }}</span></code> 拼下面的地址。</span>
+                                </li>
+                            </ol>
+
+                            <p class="border-t border-base-300 pt-3 text-xs leading-5 opacity-60">
+                             Tailscale 需要电脑与访问端均安装且登录同一个账号才能访问
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-2 border-t border-base-300 pt-4">
+                        <span class="section-label">拼出取码地址</span>
+                        <div class="flex flex-col gap-2 sm:flex-row">
+                            <input id="pierceHost" class="input input-sm w-full font-mono" spellcheck="false"
+                                autocomplete="off" placeholder="穿透拿到的域名或地址，如 abcd.natfrp.cloud:12345 或 100.64.0.1:{{ config.get('port', 5000) }}" />
+                            <button type="button" id="pierceCopyBtn" class="btn btn-primary btn-sm shrink-0">生成并复制</button>
+                        </div>
+                        <p id="pierceResult" class="font-mono text-xs leading-5 break-all opacity-60"></p>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -696,6 +794,10 @@ function renderAddresses() {
 function renderDone() {
     renderRestartNotice();
     renderAddresses();
+    renderPierce();
+    document.querySelectorAll('[data-live-port]').forEach(function (el) {
+        el.textContent = state.port || 5000;
+    });
 }
 
 function copyText(text) {
@@ -729,6 +831,46 @@ function fallbackCopy(text, done) {
     }
     area.remove();
 }
+
+// ---------- 外网访问 ----------
+
+function buildPierceUrl(raw) {
+    const host = String(raw || '').trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+    if (!host) {
+        return '';
+    }
+    return 'http://' + host + normalizeRoute(state.route) + '?token=' + encodeURIComponent(state.token);
+}
+
+function renderPierce() {
+    const url = buildPierceUrl(document.getElementById('pierceHost').value);
+    document.getElementById('pierceResult').textContent = url;
+    return url;
+}
+
+document.getElementById('pierceHost').addEventListener('input', renderPierce);
+
+document.getElementById('pierceHost').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') {
+        return;
+    }
+    e.preventDefault();
+    document.getElementById('pierceCopyBtn').click();
+});
+
+document.getElementById('pierceCopyBtn').addEventListener('click', function () {
+    const url = renderPierce();
+    if (!url) {
+        toast('先填入穿透后拿到的域名或地址', 'error');
+        document.getElementById('pierceHost').focus();
+        return;
+    }
+    copyText(url);
+});
+
+document.querySelector('[data-guide-token]').addEventListener('click', function () {
+    goto(1);
+});
 
 // ---------- 测试二维码 ----------
 
