@@ -296,7 +296,7 @@
                             <div class="flex items-start justify-between gap-2">
                                 <div class="min-w-0">
                                     <div class="text-sm font-medium">SakuraFrp</div>
-                                    <div class="mt-0.5 text-xs opacity-60">公网隧道，任何浏览器都能直接打开</div>
+                                    <div class="mt-0.5 text-xs opacity-60">公网隧道，适合无法安装 Tailscale 客户端的设备</div>
                                 </div>
                                 <a class="btn btn-ghost btn-sm shrink-0" href="https://www.natfrp.com/" target="_blank"
                                     rel="noopener">官网</a>
@@ -318,10 +318,6 @@
                                     <span>下载客户端后用密钥登录并启动隧道，日志里会给出访问域名和端口，拿它拼下面的地址。</span>
                                 </li>
                             </ol>
-
-                            <p class="border-t border-base-300 pt-3 text-xs leading-5 opacity-60">
-                                客户端跑在本机，所以监听地址保持 <code class="font-mono">127.0.0.1</code> 反而更安全。打不开先查：端口是否与配置一致、隧道是否已启动、部分节点不允许 TCP 隧道转发 HTTP（换个节点再试）。
-                            </p>
                         </div>
 
                         <!-- Tailscale -->
@@ -329,7 +325,7 @@
                             <div class="flex items-start justify-between gap-2">
                                 <div class="min-w-0">
                                     <div class="text-sm font-medium">Tailscale</div>
-                                    <div class="mt-0.5 text-xs opacity-60">组网直连，访问端也要登录同一账号</div>
+                                    <div class="mt-0.5 text-xs opacity-60">组网直连，适合可以安装 Tailscale 客户端的设备</div>
                                 </div>
                                 <a class="btn btn-ghost btn-sm shrink-0" href="https://tailscale.com/" target="_blank"
                                     rel="noopener">官网</a>
@@ -351,10 +347,6 @@
                                             class="font-mono">100.x:<span data-live-port>{{ config.get('port', 5000) }}</span></code> 拼下面的地址。</span>
                                 </li>
                             </ol>
-
-                            <p class="border-t border-base-300 pt-3 text-xs leading-5 opacity-60">
-                             Tailscale 需要电脑与访问端均安装且登录同一个账号才能访问
-                            </p>
                         </div>
                     </div>
 
