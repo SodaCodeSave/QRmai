@@ -410,9 +410,17 @@ def find_wechat_window_by_process():
     return windows[0] if windows else None
 
 
-def _error_image(message):
-    """生成带错误信息的提示图片，返回 BytesIO"""
-    img_io = BytesIO()
+class ErrorImage(BytesIO):
+    """错误提示图，携带可直接展示给用户的错误说明"""
+
+    def __init__(self, error_message):
+        super().__init__()
+        self.error_message = error_message
+
+
+def _error_image(message, error_message=None):
+    """生成带错误信息的提示图片，返回 ErrorImage"""
+    img_io = ErrorImage(error_message or message)
     im = Image.new("L", (100, 100), "#FFFFFF")
     font = ImageFont.load_default(size=23)
     draw = ImageDraw.Draw(im)
@@ -525,7 +533,10 @@ def qrmai_action():
             return build_qr_image(qr_data)
         if window_found:
             logger.warning("独立窗口二维码识别超时")
-            return _error_image("Unable\nto load\nQRCode\n(Timeout)")
+            return _error_image(
+                "Unable\nto load\nQRCode\n(Timeout)",
+                "二维码识别超时，请确认微信中已生成二维码后重试",
+            )
         logger.warning("未找到「舞萌 | 中二」独立窗口，回退到 p1/p2 坐标模式")
 
     # p1/p2 坐标模式：不知道窗口标题，用「开跑前快照 + 记录前台窗口」的方式找出
@@ -543,7 +554,10 @@ def _coordinate_mode_action(tracker):
     wechat_hwnd = find_wechat_window_by_process()
     if not wechat_hwnd:
         logger.warning("未找到Weixin.exe进程的窗口")
-        return _error_image("Window\nnot found")
+        return _error_image(
+            "Window\nnot found",
+            "未找到微信窗口，请确认微信已登录并保持运行后重试",
+        )
 
     # 尝试激活窗口，添加重试机制和错误处理
     activation_success = False
@@ -628,7 +642,10 @@ def _coordinate_mode_action(tracker):
         else:
             # 如果是最后一次尝试仍然失败，则返回错误信息
             if i == config["decode"]["retry_count"] - 1:
-                return _error_image("Unable\nto load\nQRCode\n(Timeout)")
+                return _error_image(
+                    "Unable\nto load\nQRCode\n(Timeout)",
+                    "二维码识别超时，请确认微信中已生成二维码后重试",
+                )
             # 打印重试信息
             logger.info(
                 f"二维码解码失败 过{config['decode']['time'] / config['decode']['retry_count']}s后重试 ({i+1}/{config['decode']['retry_count']})"
@@ -706,6 +723,12 @@ def test_qr():
     request_lock = True
     try:
         img_io = qrmai_action()
+
+        # 抓取失败时后台返回的是错误提示图，测试接口改为直接返回错误信息
+        error_message = getattr(img_io, "error_message", None)
+        if error_message:
+            return jsonify({"error": error_message}), 502
+
         img_io.seek(0)
         return Response(img_io.getvalue(), mimetype="image/png")
     except Exception as e:
